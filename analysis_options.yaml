@@ -1,0 +1,50 @@
+# This file configures the analyzer, which statically analyzes Dart code to
+# check for errors, warnings, and lints.
+#
+# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
+# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
+# invoked from the command line by running `flutter analyze`.
+
+# The following line activates a set of recommended lints for Flutter apps,
+# packages, and plugins designed to encourage good coding practices.
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  # The lint rules applied to this project can be customized in the
+  # section below to disable rules from the `package:flutter_lints/flutter.yaml`
+  # included above or to enable additional rules. A list of all available lints
+  # and their documentation is published at https://dart.dev/lints.
+  #
+  # Instead of disabling a lint rule for the entire project in the
+  # section below, it can also be suppressed for a single line of code
+  # or a specific dart file by using the `// ignore: name_of_lint` and
+  # `// ignore_for_file: name_of_lint` syntax on the line or in the file
+  # producing the lint.
+  rules:
+    # Code style rules - disabled to reduce noise
+    - prefer_const_constructors: false
+    - prefer_const_constructors_in_immutables: false
+    - use_key_in_widget_constructors: false
+    - library_private_types_in_public_api: false
+    - use_super_parameters: false
+    - prefer_final_fields: false
+    - unnecessary_this: false
+    - unnecessary_const: false
+    - sort_child_properties_last: false
+    - sized_box_for_whitespace: false
+    - prefer_is_empty: false
+    - prefer_interpolation_to_compose_strings: false
+    
+    # Keep these enabled - they catch real issues
+    - avoid_print: true
+    - avoid_empty_else: true
+    - use_build_context_synchronously: true
+    - avoid_relative_lib_imports: true
+    - no_adjacent_strings_in_list: true
+    - unused_import: true
+    - unused_element: true
+    - unused_field: true
+    - unused_local_variable: true
+
+# Additional information about this file can be found at
+# https://dart.dev/guides/language/analysis-options

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "420005704423",
+    "project_id": "doctor-app-b2371",
+    "storage_bucket": "doctor-app-b2371.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:420005704423:android:85d3c22bb7a89db9762842",
+        "android_client_info": {
+          "package_name": "com.example.care_connect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhisIonvsgDNRlGAOoPdTOx0nan74ejq4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:420005704423:android:feed54026c249947762842",
+        "android_client_info": {
+          "package_name": "health_doctor.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhisIonvsgDNRlGAOoPdTOx0nan74ejq4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
