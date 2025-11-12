@@ -1,6 +1,4 @@
 import 'package:care_connect/pages/client/message_page.dart';
-import 'package:care_connect/pages/doctor/task_service.dart';
-import 'package:care_connect/pages/doctor/add_prescription_dialog.dart';
 import 'package:flutter/material.dart';
 import 'doctor/note_list_page.dart';
 import 'doctor/notification_page.dart';
@@ -13,7 +11,6 @@ class DoctorPage extends StatefulWidget {
 
 class _DoctorPageState extends State<DoctorPage> {
   int _selectedIndex = 0;
-  final TaskService _taskService = TaskService();
 
   static final List<Widget> _widgetOptions = <Widget>[
     DoctorNoteListPage(),
@@ -28,25 +25,10 @@ class _DoctorPageState extends State<DoctorPage> {
     });
   }
 
-  // Test function to add a prescription task
-  void _testAddPrescriptionTask() async {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AddPrescriptionDialog(
-        taskService: _taskService,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _widgetOptions.elementAt(_selectedIndex),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _testAddPrescriptionTask,
-        tooltip: 'Add Test Prescription',
-        child: const Icon(Icons.add),
-      ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.only(
             bottom: 25.0, right: 30.0, left: 30.0), // Add bottom margin here
