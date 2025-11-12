@@ -44,7 +44,7 @@ const List<Map<String, dynamic>> durationOptions = [
   {'label': '3 months', 'days': 90},
   {'label': '6 months', 'days': 180},
   {'label': 'Ongoing', 'days': 365},
-  {'label': 'As needed', 'days': 7},
+  {'label': 'As needed', 'days': 0},
 ];
 
 class MedicineEntry {
@@ -561,6 +561,7 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
             Row(
               children: [
                 Expanded(
+                  flex: 3,
                   child: DropdownButtonFormField<String>(
                     value: medicine.type,
                     decoration: InputDecoration(
@@ -568,11 +569,14 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8)),
                       isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 12),
                     ),
                     items: medicineTypes
                         .map((type) => DropdownMenuItem(
                               value: type,
-                              child: Text(type),
+                              child:
+                                  Text(type, overflow: TextOverflow.ellipsis),
                             ))
                         .toList(),
                     onChanged: (value) {
@@ -584,6 +588,7 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
+                  flex: 2,
                   child: TextFormField(
                     initialValue: medicine.dosage,
                     decoration: InputDecoration(
@@ -592,6 +597,8 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8)),
                       isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 12),
                     ),
                     onChanged: (value) => medicine.dosage = value,
                   ),

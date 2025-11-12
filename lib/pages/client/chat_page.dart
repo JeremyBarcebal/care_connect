@@ -37,7 +37,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     User? user = FirebaseAuth.instance.currentUser;
-    var isDocVal = user?.uid == widget.chatData['doctor'];
+    var isDocVal = user?.uid == widget.chatData['patient'];
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -347,46 +347,78 @@ class _ChatPageState extends State<ChatPage> {
     try {
       setState(() {});
 
+      print('=== ACCEPTING PRESCRIPTION ===');
+      print('Patient ID: ${prescription['patientId']}');
+      print('Current User ID: ${FirebaseAuth.instance.currentUser?.uid}');
+
       final medicines = prescription['medicines'] as List<dynamic>? ?? [];
+      print('Number of medicines: ${medicines.length}');
 
       if (medicines.isNotEmpty) {
         // Handle multiple medicines
         for (var med in medicines) {
           final medicineMap = med as Map<String, dynamic>;
+          print('Processing medicine: ${medicineMap['medicineName']}');
 
-          // Convert duration string to days
-          final durationStr = medicineMap['duration'] ?? '30 days';
+          // Convert duration to string then to days (handle int or string stored in Firestore)
+          final durationStr = (medicineMap['duration'] ?? '30 days').toString();
           final durationDays = _parseDurationToDays(durationStr);
+          print('  Duration: $durationStr -> $durationDays days');
 
           // Get times - could be a list (new format) or a single time (legacy)
           final times = medicineMap['times'] as List<dynamic>?;
+          print('  Times: $times');
+
+          // Prepare medicine metadata for task storage - ensure all values are Strings
+          final medicineMetadata = {
+            'type': (medicineMap['type'] ?? '').toString(),
+            'dosage': (medicineMap['dosage'] ?? '').toString(),
+            'frequency': (medicineMap['frequency'] ?? '').toString(),
+            'duration': (medicineMap['duration'] ?? '').toString(),
+            'remarks': (medicineMap['remarks'] ?? '').toString(),
+          };
+
+          print('  Medicine Metadata: $medicineMetadata');
 
           if (times != null && times.isNotEmpty) {
             // Use ALL times for creating tasks
             final timesList = times.map((t) => t.toString()).toList();
+            print(
+                '  Creating tasks with ${timesList.length} times for $durationDays days');
+            print('  Times list: $timesList');
+
             await _taskService.addPrescriptionTaskWithDuration(
-              prescription['patientId'],
-              medicineMap['medicineName'],
+              prescription['patientId'].toString(),
+              medicineMap['medicineName'].toString(),
               timesList,
               durationDays,
+              medicineData: medicineMetadata,
             );
+            print('  ✓ Tasks created successfully');
           } else if (medicineMap['time'] != null) {
             // Fallback to single time (legacy format)
             final timesList = [medicineMap['time'].toString()];
+            print('  Creating legacy tasks with single time');
+
             await _taskService.addPrescriptionTaskWithDuration(
-              prescription['patientId'],
-              medicineMap['medicineName'],
+              prescription['patientId'].toString(),
+              medicineMap['medicineName'].toString(),
               timesList,
               durationDays,
+              medicineData: medicineMetadata,
             );
+            print('  ✓ Legacy tasks created successfully');
+          } else {
+            print('  ⚠️ No times found for this medicine!');
           }
         }
       } else {
         // Fallback for single medicine (legacy format)
+        print('No medicines array found, using legacy format');
         await _taskService.addPrescriptionTask(
-          prescription['patientId'],
-          prescription['medicineName'],
-          prescription['time'],
+          prescription['patientId'].toString(),
+          prescription['medicineName'].toString(),
+          prescription['time'].toString(),
         );
       }
 
