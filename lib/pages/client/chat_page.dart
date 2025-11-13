@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:care_connect/models/prescription_message.dart';
-import 'package:care_connect/pages/client/send_prescription_dialog.dart';
 import 'package:care_connect/pages/doctor/task_service.dart';
+import 'package:care_connect/pages/doctor/add_prescription_page.dart';
 
 class ChatPage extends StatefulWidget {
   final String chatDocumentId; // Pass the chatDocumentId to specify the chat
@@ -37,7 +37,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     User? user = FirebaseAuth.instance.currentUser;
-    var isDocVal = user?.uid == widget.chatData['doctor'];
+    var isDocVal = user?.uid == widget.chatData['patient'];
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -267,18 +267,30 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  /// Show dialog for doctor to send prescription
+  /// Navigate to AddPrescriptionPage for doctor to send prescription
   void _showSendPrescriptionDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => SendPrescriptionDialog(
-        patientId: widget.chatData['client'],
-        patientName: widget.chatData['clientName'],
-        onSend: (prescription) {
-          _sendPrescriptionMessage(prescription);
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddPrescriptionPage(
+          taskService: _taskService,
+          patientId: widget.chatData['client'],
+          patientName: widget.chatData['clientName'],
+          chatDocumentId: widget.chatDocumentId,
+        ),
       ),
-    );
+    ).then((result) {
+      // After prescription is scheduled, optionally notify
+      if (result == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Prescription sent to patient!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    });
   }
 
   /// Send prescription message to chat
@@ -335,12 +347,80 @@ class _ChatPageState extends State<ChatPage> {
     try {
       setState(() {});
 
-      // Add prescription to patient's task collection
-      await _taskService.addPrescriptionTask(
-        prescription['patientId'],
-        prescription['medicineName'],
-        prescription['time'],
-      );
+      print('=== ACCEPTING PRESCRIPTION ===');
+      print('Patient ID: ${prescription['patientId']}');
+      print('Current User ID: ${FirebaseAuth.instance.currentUser?.uid}');
+
+      final medicines = prescription['medicines'] as List<dynamic>? ?? [];
+      print('Number of medicines: ${medicines.length}');
+
+      if (medicines.isNotEmpty) {
+        // Handle multiple medicines
+        for (var med in medicines) {
+          final medicineMap = med as Map<String, dynamic>;
+          print('Processing medicine: ${medicineMap['medicineName']}');
+
+          // Convert duration to string then to days (handle int or string stored in Firestore)
+          final durationStr = (medicineMap['duration'] ?? '30 days').toString();
+          final durationDays = _parseDurationToDays(durationStr);
+          print('  Duration: $durationStr -> $durationDays days');
+
+          // Get times - could be a list (new format) or a single time (legacy)
+          final times = medicineMap['times'] as List<dynamic>?;
+          print('  Times: $times');
+
+          // Prepare medicine metadata for task storage - ensure all values are Strings
+          final medicineMetadata = {
+            'type': (medicineMap['type'] ?? '').toString(),
+            'dosage': (medicineMap['dosage'] ?? '').toString(),
+            'frequency': (medicineMap['frequency'] ?? '').toString(),
+            'duration': (medicineMap['duration'] ?? '').toString(),
+            'remarks': (medicineMap['remarks'] ?? '').toString(),
+          };
+
+          print('  Medicine Metadata: $medicineMetadata');
+
+          if (times != null && times.isNotEmpty) {
+            // Use ALL times for creating tasks
+            final timesList = times.map((t) => t.toString()).toList();
+            print(
+                '  Creating tasks with ${timesList.length} times for $durationDays days');
+            print('  Times list: $timesList');
+
+            await _taskService.addPrescriptionTaskWithDuration(
+              prescription['patientId'].toString(),
+              medicineMap['medicineName'].toString(),
+              timesList,
+              durationDays,
+              medicineData: medicineMetadata,
+            );
+            print('  ✓ Tasks created successfully');
+          } else if (medicineMap['time'] != null) {
+            // Fallback to single time (legacy format)
+            final timesList = [medicineMap['time'].toString()];
+            print('  Creating legacy tasks with single time');
+
+            await _taskService.addPrescriptionTaskWithDuration(
+              prescription['patientId'].toString(),
+              medicineMap['medicineName'].toString(),
+              timesList,
+              durationDays,
+              medicineData: medicineMetadata,
+            );
+            print('  ✓ Legacy tasks created successfully');
+          } else {
+            print('  ⚠️ No times found for this medicine!');
+          }
+        }
+      } else {
+        // Fallback for single medicine (legacy format)
+        print('No medicines array found, using legacy format');
+        await _taskService.addPrescriptionTask(
+          prescription['patientId'].toString(),
+          prescription['medicineName'].toString(),
+          prescription['time'].toString(),
+        );
+      }
 
       // Update prescription status in chat
       await FirebaseFirestore.instance
@@ -369,6 +449,48 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
     }
+  }
+
+  /// Parse duration string to days
+  /// Examples: "3 days" -> 3, "1 week" -> 7, "2 weeks" -> 14, "1 month" -> 30, "Ongoing" -> 365
+  int _parseDurationToDays(String duration) {
+    final lowerDuration = duration.toLowerCase().trim();
+
+    if (lowerDuration.contains('ongoing')) {
+      return 365; // 1 year for ongoing
+    } else if (lowerDuration.contains('month')) {
+      final match = RegExp(r'(\d+)').firstMatch(lowerDuration);
+      if (match != null) {
+        final months = int.parse(match.group(1)!);
+        return months * 30; // Approximate: 1 month = 30 days
+      }
+      return 30; // Default: 1 month
+    } else if (lowerDuration.contains('week')) {
+      final match = RegExp(r'(\d+)').firstMatch(lowerDuration);
+      if (match != null) {
+        final weeks = int.parse(match.group(1)!);
+        return weeks * 7;
+      }
+      return 7; // Default: 1 week
+    } else if (lowerDuration.contains('day')) {
+      final match = RegExp(r'(\d+)').firstMatch(lowerDuration);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+      return 1; // Default: 1 day
+    }
+
+    // Try to parse as number
+    try {
+      final match = RegExp(r'(\d+)').firstMatch(lowerDuration);
+      if (match != null) {
+        return int.parse(match.group(1)!);
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    return 30; // Default fallback
   }
 
   /// Decline prescription
@@ -472,13 +594,90 @@ class _ChatPageState extends State<ChatPage> {
             const SizedBox(height: 12),
 
             // Prescription details
-            _buildPrescriptionDetail('Medicine', messageData['medicineName']),
-            _buildPrescriptionDetail('Dosage', messageData['dosage']),
-            _buildPrescriptionDetail('Frequency', messageData['frequency']),
-            _buildPrescriptionDetail('Time', messageData['time']),
-            if ((messageData['instructions'] as String?)?.isNotEmpty ?? false)
-              _buildPrescriptionDetail(
-                  'Instructions', messageData['instructions']),
+            // Check if this is a new format with multiple medicines or legacy single medicine
+            if (messageData['medicines'] != null &&
+                (messageData['medicines'] as List).isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Medicines:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...(messageData['medicines'] as List<dynamic>)
+                      .asMap()
+                      .entries
+                      .map((e) {
+                    final med = e.value as Map<String, dynamic>;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              med['medicineName'] ?? '',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if ((med['type'] as String?)?.isNotEmpty ?? false)
+                              _buildPrescriptionDetail('Type', med['type']),
+                            _buildPrescriptionDetail('Dosage', med['dosage']),
+                            // Handle both new format (times list) and legacy format (single time)
+                            if ((med['times'] as List<dynamic>?)?.isNotEmpty ??
+                                false)
+                              _buildPrescriptionDetail(
+                                  'Times',
+                                  (med['times'] as List<dynamic>)
+                                      .cast<String>()
+                                      .join(', '))
+                            else if ((med['time'] as String?)?.isNotEmpty ??
+                                false)
+                              _buildPrescriptionDetail('Time', med['time']),
+                            _buildPrescriptionDetail(
+                                'Frequency', med['frequency']),
+                            if (med['duration'] != null)
+                              _buildPrescriptionDetail('Duration',
+                                  _getDurationLabel(med['duration'] as int)),
+                            if ((med['remarks'] as String?)?.isNotEmpty ??
+                                false)
+                              _buildPrescriptionDetail(
+                                  'Remarks', med['remarks']),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPrescriptionDetail(
+                      'Medicine', messageData['medicineName']),
+                  _buildPrescriptionDetail('Dosage', messageData['dosage']),
+                  _buildPrescriptionDetail(
+                      'Frequency', messageData['frequency']),
+                  _buildPrescriptionDetail('Time', messageData['time']),
+                  if ((messageData['instructions'] as String?)?.isNotEmpty ??
+                      false)
+                    _buildPrescriptionDetail(
+                        'Instructions', messageData['instructions']),
+                ],
+              ),
 
             // Patient info
             const SizedBox(height: 8),
@@ -558,6 +757,22 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   /// Helper to build prescription detail row
+  String _getDurationLabel(int days) {
+    const durationMap = {
+      3: '3 days',
+      5: '5 days',
+      7: '1 week',
+      14: '2 weeks',
+      21: '3 weeks',
+      30: '1 month',
+      60: '2 months',
+      90: '3 months',
+      180: '6 months',
+      365: 'Ongoing',
+    };
+    return durationMap[days] ?? '$days days';
+  }
+
   Widget _buildPrescriptionDetail(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
