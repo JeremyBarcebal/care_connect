@@ -37,7 +37,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     User? user = FirebaseAuth.instance.currentUser;
-    var isDocVal = user?.uid == widget.chatData['patient'];
+    var isDocVal = user?.uid == widget.chatData['doctor'];
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -56,8 +56,8 @@ class _ChatPageState extends State<ChatPage> {
             const SizedBox(width: 10),
             Text(
               isDocVal
-                  ? widget.chatData['doctorName'] + " (Doctor)"
-                  : widget.chatData['clientName'] + ' (Client)',
+                  ? widget.chatData['clientName'] + ' (Client)'
+                  : widget.chatData['doctorName'] + " (Doctor)",
               style: const TextStyle(
                   fontSize: 12,
                   color: Colors.white,
@@ -115,7 +115,7 @@ class _ChatPageState extends State<ChatPage> {
                     var isCurrUser = messageData['sender'] == user?.uid;
                     var isPatient = user?.uid != widget.chatData['doctor'];
 
-                    // Check if this is a prescription message
+                    // Check if this is a prescription message or a prescription reference
                     if (messageData['type'] == 'prescription') {
                       return _buildPrescriptionMessage(
                         messageData.data() as Map<String, dynamic>,
@@ -126,6 +126,51 @@ class _ChatPageState extends State<ChatPage> {
                         isPatient &&
                             !isCurrUser, // Show accept button only for patient receiving
                         messageData.id, // Pass message document ID
+                      );
+                    } else if (messageData['type'] == 'prescription_ref') {
+                      // Lazy fetch the full prescription document referenced by this chat message
+                      final prescriptionId =
+                          messageData['prescriptionId'] as String?;
+                      final patientId = messageData['patientId'] as String?;
+                      if (prescriptionId == null || patientId == null) {
+                        return const Text('Invalid prescription reference');
+                      }
+
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance
+                            .collection('accounts')
+                            .doc(patientId)
+                            .collection('prescriptions')
+                            .doc(prescriptionId)
+                            .get(),
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(8.0),
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+                          if (!snap.hasData || !snap.data!.exists) {
+                            return const Text('Prescription not found');
+                          }
+                          final presData =
+                              snap.data!.data() as Map<String, dynamic>;
+
+                          // Overlay chat-level status if present
+                          presData['status'] = messageData['status'] ??
+                              presData['status'] ??
+                              'pending';
+
+                          return _buildPrescriptionMessage(
+                            presData,
+                            isDoc
+                                ? widget.chatData['doctorName'] + " (Doctor)"
+                                : widget.chatData['clientName'] + ' (Client)',
+                            isCurrUser,
+                            isPatient && !isCurrUser,
+                            messageData.id,
+                          );
+                        },
                       );
                     } else {
                       // Regular text message
@@ -152,7 +197,7 @@ class _ChatPageState extends State<ChatPage> {
   // Message Row
   Widget _buildMessageRow(String sender, String message, bool isCurrUser) {
     return Align(
-      alignment: isCurrUser ? Alignment.centerLeft : Alignment.centerRight,
+      alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.symmetric(vertical: 5),
         padding: EdgeInsets.all(12),
@@ -347,6 +392,30 @@ class _ChatPageState extends State<ChatPage> {
     try {
       setState(() {});
 
+      // If this message is a reference, load the full prescription doc
+      if (prescription['prescriptionId'] != null &&
+          (prescription['medicines'] == null ||
+              (prescription['medicines'] as List).isEmpty)) {
+        final String presId = prescription['prescriptionId'].toString();
+        final String patientId = prescription['patientId'].toString();
+        final doc = await FirebaseFirestore.instance
+            .collection('accounts')
+            .doc(patientId)
+            .collection('prescriptions')
+            .doc(presId)
+            .get();
+        if (!doc.exists) {
+          throw Exception('Referenced prescription not found');
+        }
+        final full = doc.data() as Map<String, dynamic>;
+        // Use the fetched prescription as the source of truth
+        prescription = {
+          ...full,
+          'patientId': patientId,
+          'patientName': full['patientName'] ?? prescription['patientName']
+        };
+      }
+
       print('=== ACCEPTING PRESCRIPTION ===');
       print('Patient ID: ${prescription['patientId']}');
       print('Current User ID: ${FirebaseAuth.instance.currentUser?.uid}');
@@ -423,6 +492,26 @@ class _ChatPageState extends State<ChatPage> {
       }
 
       // Update prescription status in chat
+      // If this prescription originated from accounts/.../prescriptions, update that doc too
+      if (prescription['prescriptionId'] != null) {
+        try {
+          final presId = prescription['prescriptionId'].toString();
+          final patientId = prescription['patientId'].toString();
+          await FirebaseFirestore.instance
+              .collection('accounts')
+              .doc(patientId)
+              .collection('prescriptions')
+              .doc(presId)
+              .update({
+            'status': 'accepted',
+            'acceptedBy': FirebaseAuth.instance.currentUser?.uid,
+            'acceptedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          print('Failed to update prescription doc status: $e');
+        }
+      }
+
       await FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatDocumentId)
@@ -496,6 +585,35 @@ class _ChatPageState extends State<ChatPage> {
   /// Decline prescription
   Future<void> _declinePrescription(String messageDocId) async {
     try {
+      // Try to read the chat message to find a prescriptionId (if it's a ref)
+      final msgSnap = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatDocumentId)
+          .collection('convo')
+          .doc(messageDocId)
+          .get();
+      final msg = msgSnap.data();
+      if (msg != null &&
+          msg['prescriptionId'] != null &&
+          msg['patientId'] != null) {
+        try {
+          final presId = msg['prescriptionId'].toString();
+          final patientId = msg['patientId'].toString();
+          await FirebaseFirestore.instance
+              .collection('accounts')
+              .doc(patientId)
+              .collection('prescriptions')
+              .doc(presId)
+              .update({
+            'status': 'declined',
+            'declinedBy': FirebaseAuth.instance.currentUser?.uid,
+            'declinedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          print('Failed to update prescription doc status on decline: $e');
+        }
+      }
+
       // Update prescription status in chat
       await FirebaseFirestore.instance
           .collection('chats')
