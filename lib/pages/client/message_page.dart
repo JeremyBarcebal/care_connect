@@ -2,6 +2,7 @@ import 'package:care_connect/pages/client/chat_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
 
 class MessagePage extends StatefulWidget {
   @override
@@ -116,39 +117,216 @@ class _MessagePageState extends State<MessagePage> {
   Widget _buildChatTile(QueryDocumentSnapshot chat) {
     User? user = FirebaseAuth.instance.currentUser;
     var chatData = chat.data() as Map<String, dynamic>;
-    var lastMessage = chatData['lastMessage'] ?? 'No messages yet';
     var isDoc = user?.uid == chatData['doctor'];
     var chatTitle = isDoc ? chatData['clientName'] : chatData['doctorName'];
+    var otherUserId = isDoc ? chatData['client'] : chatData['doctor'];
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: Color(0xFF43AF43),
-        child: Icon(Icons.person, color: Colors.white),
-      ),
-      title: Text(
-        chatTitle,
-        style: TextStyle(fontWeight: FontWeight.bold),
-      ),
-      subtitle: Text(chatData['title']),
-      trailing: Text(
-        chatData['lastUpdated'] != null
-            ? (chatData['lastUpdated'] as Timestamp)
-                .toDate()
-                .toString()
-                .substring(11, 16)
-            : '',
-        style: TextStyle(color: Colors.grey),
-      ),
-      onTap: () {
-        // Navigate to the ChatPage with the chatDocumentId
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                ChatPage(chatDocumentId: chat.id, chatData: chatData),
-          ),
+    // Get unread count for current user
+    var unreadCountKey = isDoc ? 'unreadCountDoctor' : 'unreadCountClient';
+    var unreadCount = chatData[unreadCountKey] ?? 0;
+    var hasUnread = unreadCount > 0;
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: _firestore.collection('accounts').doc(otherUserId).get(),
+      builder: (context, snapshot) {
+        String? photoURL;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          try {
+            var data = snapshot.data!.data() as Map<String, dynamic>;
+            photoURL = data['photoURL'];
+          } catch (e) {
+            print('Error loading photo: $e');
+          }
+        }
+
+        // Fetch last message from convo subcollection
+        return FutureBuilder<QuerySnapshot>(
+          future: _firestore
+              .collection('chats')
+              .doc(chat.id)
+              .collection('convo')
+              .orderBy('timestamp', descending: true)
+              .limit(1)
+              .get(),
+          builder: (context, convoSnapshot) {
+            String lastMessage = 'No messages yet';
+            String lastTime = '';
+
+            if (convoSnapshot.hasData && convoSnapshot.data!.docs.isNotEmpty) {
+              var lastMsg =
+                  convoSnapshot.data!.docs.first.data() as Map<String, dynamic>;
+
+              // Handle different message types
+              if (lastMsg['type'] == 'text') {
+                lastMessage = lastMsg['message'] ?? 'No messages yet';
+              } else if (lastMsg['type'] == 'prescription') {
+                lastMessage =
+                    'Prescription: ${lastMsg['medicineName'] ?? 'Medicine'}';
+              } else {
+                lastMessage =
+                    '${lastMsg['type']?.toString().toUpperCase() ?? 'MESSAGE'}';
+              }
+
+              // Format time
+              if (lastMsg['timestamp'] != null) {
+                var messageTime = (lastMsg['timestamp'] as Timestamp).toDate();
+                var now = DateTime.now();
+                var yesterday = DateTime(now.year, now.month, now.day - 1);
+                var msgDate = DateTime(
+                    messageTime.year, messageTime.month, messageTime.day);
+
+                if (msgDate == DateTime(now.year, now.month, now.day)) {
+                  // Today - show time
+                  lastTime =
+                      '${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
+                } else if (msgDate == yesterday) {
+                  // Yesterday
+                  lastTime = 'Yesterday';
+                } else {
+                  // Older - show date
+                  lastTime = '${messageTime.month}/${messageTime.day}';
+                }
+              }
+            }
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: hasUnread ? Colors.green.shade50 : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListTile(
+                  leading: _buildProfileAvatar(photoURL),
+                  title: Text(
+                    chatTitle,
+                    style: TextStyle(
+                      fontWeight: hasUnread ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 14,
+                      color: hasUnread ? Colors.black87 : Colors.grey.shade700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    lastMessage,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: hasUnread
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade500,
+                      fontWeight:
+                          hasUnread ? FontWeight.w500 : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        lastTime,
+                        style: TextStyle(
+                          color:
+                              hasUnread ? Colors.green : Colors.grey.shade400,
+                          fontSize: 11,
+                          fontWeight:
+                              hasUnread ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      if (hasUnread)
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF4DBFB8),
+                          ),
+                        ),
+                    ],
+                  ),
+                  onTap: () {
+                    // Mark as read when opening chat
+                    if (hasUnread) {
+                      _firestore.collection('chats').doc(chat.id).update({
+                        unreadCountKey: 0,
+                      });
+                    }
+
+                    // Navigate to the ChatPage with the chatDocumentId
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatPage(
+                            chatDocumentId: chat.id, chatData: chatData),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          },
         );
       },
+    );
+  }
+
+  // Build profile avatar with image or icon
+  Widget _buildProfileAvatar(String? photoURL) {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF4DBFB8),
+      ),
+      child: photoURL != null && photoURL.isNotEmpty
+          ? _buildProfileImage(photoURL)
+          : const Center(
+              child: Icon(Icons.person, color: Colors.white, size: 28),
+            ),
+    );
+  }
+
+  // Build profile image from data URL or network
+  Widget _buildProfileImage(String photoURL) {
+    if (photoURL.startsWith('data:image')) {
+      try {
+        final parts = photoURL.split(',');
+        if (parts.length > 1) {
+          final base64String = parts[1];
+          final decodedBytes = base64Decode(base64String);
+          return ClipOval(
+            child: Image.memory(
+              decodedBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Icon(Icons.person, color: Colors.white, size: 28),
+                );
+              },
+            ),
+          );
+        }
+      } catch (e) {
+        print('Error decoding Base64 image: $e');
+        return const Center(
+          child: Icon(Icons.person, color: Colors.white, size: 28),
+        );
+      }
+    }
+
+    // Try to load as network image
+    return ClipOval(
+      child: Image.network(
+        photoURL,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Icon(Icons.person, color: Colors.white, size: 28),
+          );
+        },
+      ),
     );
   }
 }

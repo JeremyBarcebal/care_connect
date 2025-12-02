@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image/image.dart' as img;
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -8,131 +14,614 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  bool _isEditingDisplayName = false; // Flag to toggle display name edit mode
-  final TextEditingController _displayNameController = TextEditingController();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _imagePicker = ImagePicker();
+
+  // Editing state
+  Map<String, bool> _editingState = {};
+  bool _isUploadingPhoto = false;
+
+  // Controllers for all fields
+  final Map<String, TextEditingController> _controllers = {
+    'name': TextEditingController(),
+    'email': TextEditingController(),
+    'mobileNo': TextEditingController(),
+    'dob': TextEditingController(),
+    'gender': TextEditingController(),
+    'street': TextEditingController(),
+    'city': TextEditingController(),
+    'state': TextEditingController(),
+    'zipCode': TextEditingController(),
+    'insuranceProvider': TextEditingController(),
+    'policyNumber': TextEditingController(),
+    'emergencyContact': TextEditingController(),
+    'governmentId': TextEditingController(),
+  };
+
+  String? _profilePhotoUrl;
+  File? _selectedImage;
 
   @override
   void initState() {
     super.initState();
+    // Initialize all editing states to false
+    for (var key in _controllers.keys) {
+      _editingState[key] = false;
+    }
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
     User? user = _auth.currentUser;
-    if (user != null && user.displayName != null) {
-      _displayNameController.text = user.displayName!;
+    if (user != null) {
+      _profilePhotoUrl = user.photoURL;
+
+      // Load all data from Firestore
+      DocumentSnapshot userDoc =
+          await _firestore.collection('accounts').doc(user.uid).get();
+      if (userDoc.exists) {
+        setState(() {
+          _controllers['name']!.text = userDoc['name'] ?? '';
+          _controllers['email']!.text = userDoc['email'] ?? user.email ?? '';
+          _controllers['mobileNo']!.text = userDoc['mobileNo'] ?? '';
+          _controllers['dob']!.text = userDoc['dob'] ?? '';
+          _controllers['gender']!.text = userDoc['gender'] ?? '';
+          _controllers['street']!.text = userDoc['street'] ?? '';
+          _controllers['city']!.text = userDoc['city'] ?? '';
+          _controllers['state']!.text = userDoc['state'] ?? '';
+          _controllers['zipCode']!.text = userDoc['zipCode'] ?? '';
+          _controllers['insuranceProvider']!.text =
+              userDoc['insuranceProvider'] ?? '';
+          _controllers['policyNumber']!.text = userDoc['policyNumber'] ?? '';
+          _controllers['emergencyContact']!.text =
+              userDoc['emergencyContact'] ?? '';
+          _controllers['governmentId']!.text = userDoc['governmentId'] ?? '';
+          // Safe access to photoURL - use .get() method with null coalescing
+          _profilePhotoUrl =
+              (userDoc.data() as Map?)?.containsKey('photoURL') == true
+                  ? userDoc['photoURL']
+                  : user.photoURL;
+        });
+
+        // If photoURL field doesn't exist, add it to the document
+        if ((userDoc.data() as Map?)?.containsKey('photoURL') != true) {
+          await _firestore.collection('accounts').doc(user.uid).update({
+            'photoURL': user.photoURL ?? '',
+          }).catchError((e) {
+            print('Error adding photoURL field: $e');
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile =
+          await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+        await _uploadProfilePhoto();
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error picking image: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+
+  Future<void> _uploadProfilePhoto() async {
+    if (_selectedImage == null) return;
+
+    setState(() {
+      _isUploadingPhoto = true;
+    });
+
+    try {
+      User? user = _auth.currentUser;
+      if (user != null) {
+        // Get file from the selected image
+        final file = _selectedImage!;
+
+        // Verify file exists and is readable
+        if (!file.existsSync()) {
+          throw Exception('Selected image file no longer exists');
+        }
+
+        print('Reading and compressing image...');
+        print('Original file size: ${file.lengthSync()} bytes');
+
+        // Read the image file
+        final bytes = await file.readAsBytes();
+
+        // Decode the image
+        img.Image? originalImage = img.decodeImage(bytes);
+
+        if (originalImage == null) {
+          throw Exception('Failed to decode image');
+        }
+
+        // Resize image to reduce size (max 400x400 pixels)
+        img.Image resizedImage = img.copyResize(
+          originalImage,
+          width: 400,
+          height: 400,
+          interpolation: img.Interpolation.average,
+        );
+
+        // Encode to JPEG with quality 80 to compress
+        final compressedBytes = img.encodeJpg(resizedImage, quality: 80);
+
+        print('Compressed file size: ${compressedBytes.length} bytes');
+
+        // Convert to Base64
+        final base64String = base64Encode(compressedBytes);
+        final dataUrl = 'data:image/jpeg;base64,$base64String';
+
+        print('Data URL length: ${dataUrl.length}');
+
+        // Update in Firestore (store Base64 directly)
+        await _firestore.collection('accounts').doc(user.uid).update({
+          'photoURL': dataUrl,
+        });
+
+        await user.reload();
+
+        setState(() {
+          _profilePhotoUrl = dataUrl;
+          _selectedImage = null;
+          _isUploadingPhoto = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(child: Text('Profile photo updated successfully!')),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error uploading photo: $e');
+      setState(() {
+        _isUploadingPhoto = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.warning, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error uploading photo: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
     }
   }
 
   void _logout(BuildContext context) async {
-    await _auth.signOut(); // Firebase sign out
-    Navigator.pushReplacementNamed(context, '/login'); // Redirect to login page
+    await _auth.signOut();
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
-  Future<void> _saveDisplayName() async {
-    if (_displayNameController.text.isNotEmpty) {
+  Future<void> _saveUserInfo() async {
+    try {
       User? user = _auth.currentUser;
       if (user != null) {
-        await user.updateDisplayName(_displayNameController.text);
-        await user.reload();
-        setState(() {
-          _isEditingDisplayName = false; // Exit edit mode
+        // Update all fields in Firestore
+        Map<String, dynamic> updateData = {};
+        _controllers.forEach((key, controller) {
+          updateData[key] = controller.text;
         });
+
+        await _firestore
+            .collection('accounts')
+            .doc(user.uid)
+            .update(updateData);
+
+        // Update display name in auth if changed
+        if (_controllers['name']!.text.isNotEmpty) {
+          await user.updateDisplayName(_controllers['name']!.text);
+          await user.reload();
+        }
+
+        setState(() {
+          _editingState.forEach((key, _) {
+            _editingState[key] = false;
+          });
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Display name updated successfully!')),
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(child: Text('Information updated successfully!')),
+              ],
+            ),
+            backgroundColor: Colors.green[600],
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
+          ),
         );
       }
+    } catch (e) {
+      print('Error saving user info: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Error updating information: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red[700],
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
     }
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editingState.forEach((key, _) {
+        _editingState[key] = false;
+      });
+    });
+    _loadUserData();
   }
 
   @override
   Widget build(BuildContext context) {
     User? user = _auth.currentUser;
+    bool isEditingAny = _editingState.values.any((value) => value);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Settings'),
+        title: const Text('Settings'),
+        backgroundColor: const Color(0xFF4DBFB8),
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Account Details',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20),
-            if (user != null) ...[
-              ListTile(
-                leading: Icon(Icons.email),
-                title: Text('Email'),
-                subtitle: Text(user.email ?? 'No email available'),
-              ),
-              Divider(),
-              // Toggle between display name view and edit form
-              _isEditingDisplayName
-                  ? Column(
-                      children: [
-                        TextFormField(
-                          controller: _displayNameController,
-                          decoration: InputDecoration(
-                            labelText: 'Edit Display Name',
-                          ),
-                        ),
-                        SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _isEditingDisplayName = false; // Cancel edit
-                                });
-                              },
-                              child: Text('Cancel'),
-                            ),
-                            ElevatedButton(
-                              onPressed: _saveDisplayName, // Save display name
-                              child: Text('Save'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    )
-                  : ListTile(
-                      leading: Icon(Icons.person),
-                      title: Text('Display Name'),
-                      subtitle:
-                          Text(user.displayName ?? 'No display name available'),
-                      onTap: () {
-                        setState(() {
-                          _isEditingDisplayName = true; // Enter edit mode
-                        });
-                      },
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Profile Photo Section
+              Stack(
+                children: [
+                  Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey[300],
+                      border: Border.all(
+                        color: const Color(0xFF4DBFB8),
+                        width: 3,
+                      ),
                     ),
-              Divider(),
-              ListTile(
-                leading: Icon(Icons.verified_user),
-                title: Text('User ID'),
-                subtitle: Text(user.uid),
+                    child: _profilePhotoUrl != null
+                        ? ClipOval(
+                            child: _buildProfileImage(_profilePhotoUrl!),
+                          )
+                        : Center(
+                            child: Icon(
+                              Icons.person,
+                              size: 60,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF4DBFB8),
+                      ),
+                      child: _isUploadingPhoto
+                          ? Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: SizedBox(
+                                width: 30,
+                                height: 30,
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              onPressed: _pickImage,
+                              icon: const Icon(Icons.camera_alt,
+                                  color: Colors.white, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                    ),
+                  ),
+                ],
               ),
-              Divider(),
-            ] else ...[
-              Center(child: Text('No user is signed in')),
+              const SizedBox(height: 30),
+
+              // User Information Section
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    // Personal Information Section
+                    _buildSectionHeader('Personal Information'),
+                    _buildEditableField(
+                        'name', 'Full Name', Icons.person, TextInputType.text),
+                    const SizedBox(height: 12),
+                    _buildEditableField('email', 'Email', Icons.email,
+                        TextInputType.emailAddress),
+                    const SizedBox(height: 12),
+                    _buildEditableField('mobileNo', 'Mobile Number',
+                        Icons.phone, TextInputType.phone),
+                    const SizedBox(height: 12),
+                    _buildEditableField('dob', 'Date of Birth',
+                        Icons.calendar_today, TextInputType.text),
+                    const SizedBox(height: 12),
+                    _buildEditableField(
+                        'gender', 'Gender', Icons.wc, TextInputType.text),
+                    const SizedBox(height: 20),
+
+                    // Address Section
+                    _buildSectionHeader('Address'),
+                    _buildEditableField('street', 'Street', Icons.location_on,
+                        TextInputType.text),
+                    const SizedBox(height: 12),
+                    _buildEditableField('city', 'City', Icons.location_city,
+                        TextInputType.text),
+                    const SizedBox(height: 12),
+                    _buildEditableField(
+                        'state', 'State', Icons.map, TextInputType.text),
+                    const SizedBox(height: 12),
+                    _buildEditableField(
+                        'zipCode', 'Zip Code', Icons.mail, TextInputType.text),
+                    const SizedBox(height: 20),
+
+                    // Insurance Information Section
+                    _buildSectionHeader('Insurance Information'),
+                    _buildEditableField(
+                        'insuranceProvider',
+                        'Insurance Provider',
+                        Icons.security,
+                        TextInputType.text),
+                    const SizedBox(height: 12),
+                    _buildEditableField('policyNumber', 'Policy Number',
+                        Icons.receipt, TextInputType.text),
+                    const SizedBox(height: 20),
+
+                    // Emergency Information Section
+                    _buildSectionHeader('Emergency Information'),
+                    _buildEditableField('emergencyContact', 'Emergency Contact',
+                        Icons.warning, TextInputType.phone),
+                    const SizedBox(height: 12),
+                    _buildEditableField('governmentId', 'Government ID',
+                        Icons.badge, TextInputType.text),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Edit/Save/Cancel Buttons
+              if (isEditingAny)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ElevatedButton(
+                      onPressed: _cancelEdit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[400],
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _saveUserInfo,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4DBFB8),
+                      ),
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              const SizedBox(height: 30),
+
+              // Logout Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _logout(context),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Logout'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
-            Spacer(),
-            Center(
-              child: ElevatedButton(
-                onPressed: () => _logout(context), // Call the logout method
-                child: Text('Logout'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF4DBFB8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEditableField(
+      String key, String label, IconData icon, TextInputType keyboardType) {
+    bool isEditing = _editingState[key] ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isEditing)
+          ListTile(
+            leading: Icon(icon, color: const Color(0xFF4DBFB8)),
+            title: Text(
+              label,
+              style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500),
+            ),
+            subtitle: Text(
+              _controllers[key]!.text.isEmpty
+                  ? 'Not provided'
+                  : _controllers[key]!.text,
+              style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600),
+            ),
+            trailing: Icon(Icons.edit, color: Colors.grey[400]),
+            onTap: () {
+              setState(() {
+                _editingState[key] = true;
+              });
+            },
+            contentPadding: EdgeInsets.zero,
+          )
+        else
+          TextFormField(
+            controller: _controllers[key],
+            keyboardType: keyboardType,
+            decoration: InputDecoration(
+              labelText: label,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              prefixIcon: Icon(icon),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProfileImage(String photoUrl) {
+    // Check if it's a data URL (Base64 encoded image)
+    if (photoUrl.startsWith('data:image')) {
+      try {
+        // Extract Base64 string from data URL
+        final parts = photoUrl.split(',');
+        if (parts.length > 1) {
+          final base64String = parts[1];
+          final decodedBytes = base64Decode(base64String);
+          return Image.memory(
+            decodedBytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Center(
+                child: Icon(
+                  Icons.person,
+                  size: 60,
+                  color: Colors.grey[600],
+                ),
+              );
+            },
+          );
+        }
+      } catch (e) {
+        print('Error decoding Base64 image: $e');
+      }
+    }
+
+    // If not a data URL, try to load as network image
+    return Image.network(
+      photoUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Center(
+          child: Icon(
+            Icons.person,
+            size: 60,
+            color: Colors.grey[600],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
-    _displayNameController.dispose();
+    _controllers.forEach((key, controller) {
+      controller.dispose();
+    });
     super.dispose();
   }
 }

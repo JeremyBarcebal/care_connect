@@ -44,7 +44,8 @@ class _TaskPageState extends State<TaskPage> {
   // Select date
   void _selectDate(DateTime date) {
     setState(() {
-      _selectedDate = date;
+      // Normalize the date to remove time component
+      _selectedDate = DateTime(date.year, date.month, date.day);
     });
   }
 
@@ -90,115 +91,174 @@ class _TaskPageState extends State<TaskPage> {
     _taskService = TaskService();
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.green,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: _previousWeek,
-        ),
-        title: Text(currentMonth),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.arrow_forward),
-            onPressed: _nextWeek,
-          ),
-        ],
-      ),
       body: Column(
         children: [
-          // Calendar Row
+          // Teal header with calendar
           Container(
-            color: Colors.green,
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(7, (index) {
-                return GestureDetector(
-                  onTap: () => _selectDate(weekDays[index]),
-                  child: Column(
-                    children: [
-                      Text(
-                        DateFormat.E().format(weekDays[index]).toUpperCase(),
-                        style: TextStyle(color: Colors.white),
+            color: Color(0xFF4DBFB8),
+            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            child: Column(
+              children: [
+                // Month navigation
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: _previousWeek,
+                    ),
+                    Text(
+                      currentMonth,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        "${weekDays[index].day}",
-                        style: TextStyle(
-                          color: _selectedDate == weekDays[index]
-                              ? Colors.yellow
-                              : Colors.white,
-                        ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.arrow_forward, color: Colors.white),
+                      onPressed: _nextWeek,
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                // Calendar Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: List.generate(7, (index) {
+                    final dayDate = weekDays[index];
+                    final normalizedDay =
+                        DateTime(dayDate.year, dayDate.month, dayDate.day);
+                    final isSelected = _selectedDate != null &&
+                        DateTime(_selectedDate!.year, _selectedDate!.month,
+                                _selectedDate!.day) ==
+                            normalizedDay;
+
+                    return GestureDetector(
+                      onTap: () => _selectDate(dayDate),
+                      child: Column(
+                        children: [
+                          Text(
+                            DateFormat.E().format(dayDate).toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.transparent,
+                            ),
+                            child: Center(
+                              child: Text(
+                                "${dayDate.day}",
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Color(0xFF4DBFB8)
+                                      : Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }),
-            ),
-          ),
-          // Today's Task Header
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "TODAY'S TASK",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          // Task List
-          Expanded(
-            child: StreamBuilder<DocumentSnapshot>(
-              stream: _getTasksForSelectedDate(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError ||
-                    !snapshot.hasData ||
-                    snapshot.data!.data() == null) {
-                  return Center(child: Text('No tasks available.'));
-                }
-
-                var tasks = snapshot.data!['tasks'] as List<dynamic>?;
-                if (tasks == null || tasks.isEmpty) {
-                  return Center(child: Text('No tasks available.'));
-                }
-
-                String formattedDate =
-                    DateFormat('MM-dd-yyyy').format(_selectedDate!);
-
-                return ListView.builder(
-                  itemCount: tasks.length,
-                  itemBuilder: (context, index) {
-                    var task = tasks[index];
-                    final String taskId = task['taskId'] ?? '';
-                    final String status = task['status'] ?? 'pending';
-                    return TaskItem(
-                      title: task['title'],
-                      time: task['time'],
-                      medicineType: task['type'] ?? '',
-                      dosage: task['dosage'] ?? '',
-                      frequency: task['frequency'] ?? '',
-                      duration: task['duration'] ?? '',
-                      remarks: task['remarks'] ?? '',
-                      taskId: taskId,
-                      status: status,
-                      onMarkComplete: taskId.isNotEmpty
-                          ? () async {
-                              await _taskService.markTaskComplete(
-                                  userId, formattedDate, taskId);
-                            }
-                          : null,
                     );
-                  },
-                );
-              },
+                  }),
+                ),
+              ],
+            ),
+          ),
+          // White card with tasks
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(40),
+                  topRight: Radius.circular(40),
+                ),
+              ),
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: _getTasksForSelectedDate(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError ||
+                      !snapshot.hasData ||
+                      snapshot.data!.data() == null) {
+                    return Center(child: Text('No tasks available.'));
+                  }
+
+                  var tasks = snapshot.data!['tasks'] as List<dynamic>?;
+                  if (tasks == null || tasks.isEmpty) {
+                    return Center(child: Text('No tasks available.'));
+                  }
+
+                  String formattedDate =
+                      DateFormat('MM-dd-yyyy').format(_selectedDate!);
+
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // TODAY'S TASK Header
+                        Text(
+                          "TODAY'S TASK",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4DBFB8),
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        // Task List
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: NeverScrollableScrollPhysics(),
+                          itemCount: tasks.length,
+                          separatorBuilder: (context, index) =>
+                              SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            var task = tasks[index];
+                            final String taskId = task['taskId'] ?? '';
+                            final String status = task['status'] ?? 'pending';
+                            return TaskItem(
+                              title: task['title'],
+                              time: task['time'],
+                              medicineType: task['type'] ?? '',
+                              dosage: task['dosage'] ?? '',
+                              frequency: task['frequency'] ?? '',
+                              duration: task['duration'] ?? '',
+                              remarks: task['remarks'] ?? '',
+                              taskId: taskId,
+                              status: status,
+                              onMarkComplete: taskId.isNotEmpty
+                                  ? () async {
+                                      await _taskService.markTaskComplete(
+                                          userId, formattedDate, taskId);
+                                    }
+                                  : null,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -242,7 +302,7 @@ class _TaskItemState extends State<TaskItem> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 8.0),
       child: GestureDetector(
         onTap: () {
           setState(() {
@@ -253,11 +313,11 @@ class _TaskItemState extends State<TaskItem> {
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
             color: widget.status == 'completed'
-                ? Colors.green.shade300
-                : Colors.green,
+                ? Color(0xFF4DBFB8).withOpacity(0.3)
+                : Color(0xFF4DBFB8),
             borderRadius: BorderRadius.circular(12),
             border: widget.status == 'completed'
-                ? Border.all(color: Colors.green.shade700, width: 2)
+                ? Border.all(color: Color(0xFF4DBFB8), width: 2)
                 : null,
             boxShadow: _isExpanded
                 ? [
@@ -273,40 +333,143 @@ class _TaskItemState extends State<TaskItem> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Main Task Item (Always visible)
-              ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                leading: widget.status == 'completed'
-                    ? Icon(Icons.check_circle, color: Colors.green.shade700)
-                    : Icon(Icons.local_pharmacy, color: Colors.white),
-                title: Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: widget.status == 'completed'
-                        ? Colors.green.shade700
-                        : Colors.white,
-                    decoration: widget.status == 'completed'
-                        ? TextDecoration.lineThrough
-                        : null,
-                  ),
-                ),
-                trailing: Row(
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      widget.time,
-                      style: TextStyle(
-                        color: widget.status == 'completed'
-                            ? Colors.green.shade700
-                            : Colors.white,
+                    // Header row with title and button
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.title,
+                                style: TextStyle(
+                                  color: widget.status == 'completed'
+                                      ? Color(0xFF4DBFB8)
+                                      : Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: widget.status == 'completed'
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if (widget.status != 'completed')
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Accepted',
+                              style: TextStyle(
+                                color: Color(0xFF4DBFB8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Completed',
+                              style: TextStyle(
+                                color: Color(0xFF4DBFB8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Doctor/Patient info row
+                    Row(
+                      children: [
+                        Icon(Icons.person, color: Colors.white, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Jeremy Barcebal (Doctor)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Medicine details in compact format
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (widget.medicineType.isNotEmpty)
+                            Text(
+                              'Medicine: ${widget.medicineType}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          if (widget.dosage.isNotEmpty)
+                            Text(
+                              'Dosage: ${_formatDosage(widget.dosage, widget.medicineType)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          if (widget.frequency.isNotEmpty)
+                            Text(
+                              'Frequency: ${widget.frequency}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      _isExpanded ? Icons.expand_less : Icons.expand_more,
-                      color: widget.status == 'completed'
-                          ? Colors.green.shade700
-                          : Colors.white,
+                    const SizedBox(height: 8),
+                    // Time row
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time,
+                            color: Colors.white, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Time: ${widget.time} A.M.',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -318,8 +481,8 @@ class _TaskItemState extends State<TaskItem> {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: widget.status == 'completed'
-                        ? Colors.green.shade500
-                        : Colors.green.shade700,
+                        ? Color(0xFF4DBFB8).withOpacity(0.5)
+                        : Color(0xFF2D9B9B),
                     borderRadius: const BorderRadius.only(
                       bottomLeft: Radius.circular(12),
                       bottomRight: Radius.circular(12),
@@ -414,29 +577,9 @@ class _TaskItemState extends State<TaskItem> {
                             label: const Text('Mark as Complete'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              foregroundColor: Colors.green.shade700,
+                              foregroundColor: Color(0xFF4DBFB8),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
-                          ),
-                        ),
-                      if (widget.status == 'completed')
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.check_circle,
-                                  color: Colors.green.shade700),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Completed',
-                                style: TextStyle(
-                                  color: Colors.green.shade700,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                     ],

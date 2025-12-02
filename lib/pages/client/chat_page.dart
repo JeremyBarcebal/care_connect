@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:care_connect/models/prescription_message.dart';
 import 'package:care_connect/pages/doctor/task_service.dart';
 import 'package:care_connect/pages/doctor/add_prescription_page.dart';
+import 'dart:convert';
 
 class ChatPage extends StatefulWidget {
   final String chatDocumentId; // Pass the chatDocumentId to specify the chat
@@ -21,10 +23,52 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scrollController = ScrollController();
   late TaskService _taskService;
 
+  // Cache for profile photos to avoid repeated fetches
+  final Map<String, String?> _photoCache = {};
+
   @override
   void initState() {
     super.initState();
     _taskService = TaskService();
+    // Enable Firestore offline persistence for caching
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+
+    // Pre-load photos for both doctor and patient
+    _preloadPhotos();
+  } // Pre-load profile photos for both chat participants
+
+  Future<void> _preloadPhotos() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    var isDocVal = user?.uid == widget.chatData['doctor'];
+    var doctorId = widget.chatData['doctor'];
+    var clientId = widget.chatData['client'];
+
+    try {
+      // Load doctor photo
+      var docSnapshot = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(doctorId)
+          .get(const GetOptions(source: Source.cache));
+      if (docSnapshot.exists) {
+        var docData = docSnapshot.data() as Map<String, dynamic>;
+        _photoCache[doctorId] = docData['photoURL'];
+      }
+
+      // Load client photo
+      var clientSnapshot = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(clientId)
+          .get(const GetOptions(source: Source.cache));
+      if (clientSnapshot.exists) {
+        var clientData = clientSnapshot.data() as Map<String, dynamic>;
+        _photoCache[clientId] = clientData['photoURL'];
+      }
+    } catch (e) {
+      print('Error pre-loading photos: $e');
+    }
   }
 
   @override
@@ -38,195 +82,336 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     User? user = FirebaseAuth.instance.currentUser;
     var isDocVal = user?.uid == widget.chatData['doctor'];
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        title: Row(
-          children: [
-            const CircleAvatar(
-              backgroundColor: Colors.white,
-              radius: 20,
-              child: Icon(Icons.person, color: Colors.green),
-            ),
-            const SizedBox(width: 10),
-            Text(
-              isDocVal
-                  ? widget.chatData['clientName'] + ' (Client)'
-                  : widget.chatData['doctorName'] + " (Doctor)",
-              style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.green,
-        actions: [
-          // Show prescription button only for doctors
-          if (isDocVal)
-            IconButton(
-              icon: const Icon(Icons.medication, color: Colors.white),
-              tooltip: 'Send Prescription',
+    var otherUserId =
+        isDocVal ? widget.chatData['client'] : widget.chatData['doctor'];
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(otherUserId)
+          .get(),
+      builder: (context, profileSnapshot) {
+        String? photoURL;
+        if (profileSnapshot.hasData && profileSnapshot.data!.exists) {
+          try {
+            var data = profileSnapshot.data!.data() as Map<String, dynamic>;
+            photoURL = data['photoURL'];
+          } catch (e) {
+            print('Error loading profile photo: $e');
+          }
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () {
-                _showSendPrescriptionDialog();
+                Navigator.pop(context);
               },
             ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Message List
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('chats')
-                  .doc(widget.chatDocumentId)
-                  .collection('convo')
-                  .orderBy('timestamp', descending: false) // Sort by timestamp
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("No messages yet."));
-                }
+            title: Row(
+              children: [
+                _buildProfileAvatar(photoURL, 40),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isDocVal
+                            ? widget.chatData['clientName']
+                            : widget.chatData['doctorName'],
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        isDocVal ? 'Client' : 'Doctor',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            centerTitle: false,
+            backgroundColor: Colors.green,
+            actions: [
+              // Show prescription button only for doctors
+              if (isDocVal)
+                IconButton(
+                  icon: const Icon(Icons.medication, color: Colors.white),
+                  tooltip: 'Send Prescription',
+                  onPressed: () {
+                    _showSendPrescriptionDialog();
+                  },
+                ),
+            ],
+          ),
+          body: Column(
+            children: [
+              // Message List
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('chats')
+                      .doc(widget.chatDocumentId)
+                      .collection('convo')
+                      .orderBy('timestamp',
+                          descending: false) // Sort by timestamp
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return const Center(child: Text("No messages yet."));
+                    }
 
-                var messages = snapshot.data!.docs;
-                // Scroll to the bottom after messages are built
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (_scrollController.hasClients) {
-                    _scrollController
-                        .jumpTo(_scrollController.position.maxScrollExtent);
-                  }
-                });
-                return ListView.builder(
-                  controller: _scrollController, // Attach the scroll controller
-                  padding: const EdgeInsets.all(16),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    var messageData = messages[index];
-                    User? user = FirebaseAuth.instance.currentUser;
-                    var isDoc =
-                        messageData['sender'] == widget.chatData['doctor'];
-                    var isCurrUser = messageData['sender'] == user?.uid;
-                    var isPatient = user?.uid != widget.chatData['doctor'];
+                    var messages = snapshot.data!.docs;
 
-                    // Check if this is a prescription message or a prescription reference
-                    if (messageData['type'] == 'prescription') {
-                      return _buildPrescriptionMessage(
-                        messageData.data() as Map<String, dynamic>,
-                        isDoc
-                            ? widget.chatData['doctorName'] + " (Doctor)"
-                            : widget.chatData['clientName'] + ' (Client)',
-                        isCurrUser,
-                        isPatient &&
-                            !isCurrUser, // Show accept button only for patient receiving
-                        messageData.id, // Pass message document ID
-                      );
-                    } else if (messageData['type'] == 'prescription_ref') {
-                      // Lazy fetch the full prescription document referenced by this chat message
-                      final prescriptionId =
-                          messageData['prescriptionId'] as String?;
-                      final patientId = messageData['patientId'] as String?;
-                      if (prescriptionId == null || patientId == null) {
-                        return const Text('Invalid prescription reference');
-                      }
-
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance
-                            .collection('accounts')
-                            .doc(patientId)
-                            .collection('prescriptions')
-                            .doc(prescriptionId)
-                            .get(),
-                        builder: (context, snap) {
-                          if (snap.connectionState == ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: CircularProgressIndicator(),
+                    // Scroll to bottom - reset flag on new message count to handle new messages
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (_scrollController.hasClients) {
+                        Future.delayed(const Duration(milliseconds: 100), () {
+                          if (_scrollController.hasClients) {
+                            _scrollController.animateTo(
+                              _scrollController.position.maxScrollExtent,
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOut,
                             );
                           }
-                          if (!snap.hasData || !snap.data!.exists) {
-                            return const Text('Prescription not found');
-                          }
-                          final presData =
-                              snap.data!.data() as Map<String, dynamic>;
+                        });
+                      }
+                    });
 
-                          // Overlay chat-level status if present
-                          presData['status'] = messageData['status'] ??
-                              presData['status'] ??
-                              'pending';
+                    return ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      addAutomaticKeepAlives: false,
+                      addRepaintBoundaries: false,
+                      itemBuilder: (context, index) {
+                        var messageData = messages[index];
+                        User? user = FirebaseAuth.instance.currentUser;
+                        var isDoc =
+                            messageData['sender'] == widget.chatData['doctor'];
+                        var isCurrUser = messageData['sender'] == user?.uid;
+                        var isPatient = user?.uid != widget.chatData['doctor'];
 
+                        // Determine which user's photo to load based on message sender
+                        var senderUserId = messageData['sender'] as String?;
+                        var cachedPhotoURL = _photoCache[senderUserId ?? ''];
+
+                        // Check if this is a prescription message or a prescription reference
+                        if (messageData['type'] == 'prescription') {
                           return _buildPrescriptionMessage(
-                            presData,
+                            messageData.data() as Map<String, dynamic>,
                             isDoc
                                 ? widget.chatData['doctorName'] + " (Doctor)"
                                 : widget.chatData['clientName'] + ' (Client)',
                             isCurrUser,
-                            isPatient && !isCurrUser,
-                            messageData.id,
+                            isPatient &&
+                                !isCurrUser, // Show accept button only for patient receiving
+                            messageData.id, // Pass message document ID
+                            cachedPhotoURL,
                           );
-                        },
-                      );
-                    } else {
-                      // Regular text message
-                      return _buildMessageRow(
-                        isDoc
-                            ? widget.chatData['doctorName'] + " (Doctor)"
-                            : widget.chatData['clientName'] + ' (Client)',
-                        messageData['message'],
-                        isCurrUser,
-                      );
-                    }
+                        } else if (messageData['type'] == 'prescription_ref') {
+                          // Lazy fetch the full prescription document referenced by this chat message
+                          final prescriptionId =
+                              messageData['prescriptionId'] as String?;
+                          final patientId = messageData['patientId'] as String?;
+                          if (prescriptionId == null || patientId == null) {
+                            return const Text('Invalid prescription reference');
+                          }
+
+                          return FutureBuilder<DocumentSnapshot>(
+                            future: FirebaseFirestore.instance
+                                .collection('accounts')
+                                .doc(patientId)
+                                .collection('prescriptions')
+                                .doc(prescriptionId)
+                                .get(const GetOptions(source: Source.cache)),
+                            builder: (context, snap) {
+                              if (snap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
+                              if (!snap.hasData || !snap.data!.exists) {
+                                return const Text('Prescription not found');
+                              }
+                              final presData =
+                                  snap.data!.data() as Map<String, dynamic>;
+
+                              // Overlay chat-level status if present
+                              presData['status'] = messageData['status'] ??
+                                  presData['status'] ??
+                                  'pending';
+
+                              return _buildPrescriptionMessage(
+                                presData,
+                                isDoc
+                                    ? widget.chatData['doctorName'] +
+                                        " (Doctor)"
+                                    : widget.chatData['clientName'] +
+                                        ' (Client)',
+                                isCurrUser,
+                                isPatient && !isCurrUser,
+                                messageData.id,
+                                cachedPhotoURL,
+                              );
+                            },
+                          );
+                        } else {
+                          // Regular text message - use cached photo directly
+                          return _buildMessageRow(
+                            isDoc
+                                ? widget.chatData['doctorName']
+                                : widget.chatData['clientName'],
+                            messageData['message'],
+                            isCurrUser,
+                            cachedPhotoURL,
+                          );
+                        }
+                      },
+                    );
                   },
-                );
-              },
+                ),
+              ),
+              // Input Field
+              _buildMessageInput(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Message Row
+  Widget _buildMessageRow(
+      String sender, String message, bool isCurrUser, String? photoURL) {
+    return Align(
+      alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment:
+            isCurrUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isCurrUser) _buildProfileAvatar(photoURL, 32),
+          if (!isCurrUser) const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.65,
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 5),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isCurrUser ? Colors.green.shade100 : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border:
+                    isCurrUser ? null : Border.all(color: Colors.grey.shade300),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    sender,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isCurrUser ? Colors.green : Colors.grey,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
             ),
           ),
-          // Input Field
-          _buildMessageInput(),
+          if (isCurrUser) const SizedBox(width: 8),
+          if (isCurrUser) _buildProfileAvatar(photoURL, 32),
         ],
       ),
     );
   }
 
-  // Message Row
-  Widget _buildMessageRow(String sender, String message, bool isCurrUser) {
-    return Align(
-      alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 5),
-        padding: EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isCurrUser ? Colors.green.shade100 : Colors.white,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: Colors.green,
-              child: Icon(Icons.person, color: Colors.white),
+  // Build profile avatar with image or icon
+  Widget _buildProfileAvatar(String? photoURL, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF4DBFB8),
+      ),
+      child: photoURL != null && photoURL.isNotEmpty
+          ? _buildProfileImage(photoURL)
+          : Center(
+              child: Icon(
+                Icons.person,
+                color: Colors.white,
+                size: size * 0.5,
+              ),
             ),
-            SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  sender,
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.green),
-                ),
-                SizedBox(height: 5),
-                Text(message),
-              ],
+    );
+  }
+
+  // Build profile image from data URL or network
+  Widget _buildProfileImage(String photoURL) {
+    if (photoURL.startsWith('data:image')) {
+      try {
+        final parts = photoURL.split(',');
+        if (parts.length > 1) {
+          final base64String = parts[1];
+          final decodedBytes = base64Decode(base64String);
+          return ClipOval(
+            child: Image.memory(
+              decodedBytes,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Icon(Icons.person, color: Colors.white, size: 18),
+                );
+              },
             ),
-          ],
-        ),
+          );
+        }
+      } catch (e) {
+        print('Error decoding Base64 image: $e');
+        return const Center(
+          child: Icon(Icons.person, color: Colors.white, size: 18),
+        );
+      }
+    }
+
+    // Try to load as network image
+    return ClipOval(
+      child: Image.network(
+        photoURL,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Center(
+            child: Icon(Icons.person, color: Colors.white, size: 18),
+          );
+        },
       ),
     );
   }
@@ -284,6 +469,9 @@ class _ChatPageState extends State<ChatPage> {
       try {
         // Get current user information
         User? user = FirebaseAuth.instance.currentUser;
+        var isCurrentUserDoc = user?.uid == widget.chatData['doctor'];
+
+        // Add message to chat
         await FirebaseFirestore.instance
             .collection('chats')
             .doc(widget.chatDocumentId)
@@ -293,6 +481,18 @@ class _ChatPageState extends State<ChatPage> {
           'sender': user?.uid, // Doctor or Patient
           'timestamp': FieldValue.serverTimestamp(), // Timestamp
           'type': 'text', // Message type
+        });
+
+        // Increment unread count for the other user
+        var unreadCountKey =
+            isCurrentUserDoc ? 'unreadCountClient' : 'unreadCountDoctor';
+        await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(widget.chatDocumentId)
+            .update({
+          unreadCountKey: FieldValue.increment(1),
+          'lastMessage': message,
+          'lastUpdated': FieldValue.serverTimestamp(),
         });
 
         // Clear the message input field
@@ -650,6 +850,7 @@ class _ChatPageState extends State<ChatPage> {
     bool isCurrUser,
     bool showAcceptButton,
     String messageDocId,
+    String? photoURL,
   ) {
     final status = messageData['status'] ?? 'pending';
     final statusColor = status == 'accepted'
@@ -659,217 +860,257 @@ class _ChatPageState extends State<ChatPage> {
             : Colors.orange;
 
     return Align(
-      alignment: isCurrUser ? Alignment.centerLeft : Alignment.centerRight,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isCurrUser ? Colors.blue.shade50 : Colors.green.shade50,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: statusColor, width: 1.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.local_pharmacy,
-                        size: 18, color: Colors.green),
-                    const SizedBox(width: 8),
-                    Text(
-                      sender,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    status.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+      alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment:
+            isCurrUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!isCurrUser) _buildProfileAvatar(photoURL, 40),
+          if (!isCurrUser) const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.7,
             ),
-            const SizedBox(height: 12),
-
-            // Prescription details
-            // Check if this is a new format with multiple medicines or legacy single medicine
-            if (messageData['medicines'] != null &&
-                (messageData['medicines'] as List).isNotEmpty)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Medicines:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ...(messageData['medicines'] as List<dynamic>)
-                      .asMap()
-                      .entries
-                      .map((e) {
-                    final med = e.value as Map<String, dynamic>;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              med['medicineName'] ?? '',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if ((med['type'] as String?)?.isNotEmpty ?? false)
-                              _buildPrescriptionDetail('Type', med['type']),
-                            _buildPrescriptionDetail('Dosage', med['dosage']),
-                            // Handle both new format (times list) and legacy format (single time)
-                            if ((med['times'] as List<dynamic>?)?.isNotEmpty ??
-                                false)
-                              _buildPrescriptionDetail(
-                                  'Times',
-                                  (med['times'] as List<dynamic>)
-                                      .cast<String>()
-                                      .join(', '))
-                            else if ((med['time'] as String?)?.isNotEmpty ??
-                                false)
-                              _buildPrescriptionDetail('Time', med['time']),
-                            _buildPrescriptionDetail(
-                                'Frequency', med['frequency']),
-                            if (med['duration'] != null)
-                              _buildPrescriptionDetail('Duration',
-                                  _getDurationLabel(med['duration'] as int)),
-                            if ((med['remarks'] as String?)?.isNotEmpty ??
-                                false)
-                              _buildPrescriptionDetail(
-                                  'Remarks', med['remarks']),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ],
-              )
-            else
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildPrescriptionDetail(
-                      'Medicine', messageData['medicineName']),
-                  _buildPrescriptionDetail('Dosage', messageData['dosage']),
-                  _buildPrescriptionDetail(
-                      'Frequency', messageData['frequency']),
-                  _buildPrescriptionDetail('Time', messageData['time']),
-                  if ((messageData['instructions'] as String?)?.isNotEmpty ??
-                      false)
-                    _buildPrescriptionDetail(
-                        'Instructions', messageData['instructions']),
-                ],
-              ),
-
-            // Patient info
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(4),
+                color: isCurrUser ? Colors.blue.shade50 : Colors.green.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: statusColor, width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Patient Info:',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                  // Header
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.local_pharmacy,
+                              size: 18, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              sender,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green,
+                                fontSize: 12,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Prescription details
+                  // Check if this is a new format with multiple medicines or legacy single medicine
+                  if (messageData['medicines'] != null &&
+                      (messageData['medicines'] as List).isNotEmpty)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Medicines:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...(messageData['medicines'] as List<dynamic>)
+                            .asMap()
+                            .entries
+                            .map((e) {
+                          final med = e.value as Map<String, dynamic>;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    med['medicineName'] ?? '',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if ((med['type'] as String?)?.isNotEmpty ??
+                                      false)
+                                    _buildPrescriptionDetail(
+                                        'Type', med['type']),
+                                  _buildPrescriptionDetail(
+                                      'Dosage', med['dosage']),
+                                  // Handle both new format (times list) and legacy format (single time)
+                                  if ((med['times'] as List<dynamic>?)
+                                          ?.isNotEmpty ??
+                                      false)
+                                    _buildPrescriptionDetail(
+                                        'Times',
+                                        (med['times'] as List<dynamic>)
+                                            .cast<String>()
+                                            .join(', '))
+                                  else if ((med['time'] as String?)
+                                          ?.isNotEmpty ??
+                                      false)
+                                    _buildPrescriptionDetail(
+                                        'Time', med['time']),
+                                  _buildPrescriptionDetail(
+                                      'Frequency', med['frequency']),
+                                  if (med['duration'] != null)
+                                    _buildPrescriptionDetail(
+                                        'Duration',
+                                        _getDurationLabel(
+                                            med['duration'] as int)),
+                                  if ((med['remarks'] as String?)?.isNotEmpty ??
+                                      false)
+                                    _buildPrescriptionDetail(
+                                        'Remarks', med['remarks']),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildPrescriptionDetail(
+                            'Medicine', messageData['medicineName']),
+                        _buildPrescriptionDetail(
+                            'Dosage', messageData['dosage']),
+                        _buildPrescriptionDetail(
+                            'Frequency', messageData['frequency']),
+                        _buildPrescriptionDetail('Time', messageData['time']),
+                        if ((messageData['instructions'] as String?)
+                                ?.isNotEmpty ??
+                            false)
+                          _buildPrescriptionDetail(
+                              'Instructions', messageData['instructions']),
+                      ],
+                    ),
+
+                  // Patient info
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Patient Info:',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Name: ${messageData['patientName']}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                        Text(
+                          'ID: ${messageData['patientId']}',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ],
                     ),
                   ),
-                  Text(
-                    'Name: ${messageData['patientName']}',
-                    style: const TextStyle(fontSize: 10),
-                  ),
-                  Text(
-                    'ID: ${messageData['patientId']}',
-                    style: const TextStyle(fontSize: 10),
-                  ),
+
+                  // Action buttons for patients
+                  if (showAcceptButton && status == 'pending')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _declinePrescription(messageDocId);
+                            },
+                            icon: const Icon(Icons.close, size: 16),
+                            label: const Text('Decline'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _acceptPrescription(messageData, messageDocId);
+                            },
+                            icon: const Icon(Icons.check, size: 16),
+                            label: const Text('Accept'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
-
-            // Action buttons for patients
-            if (showAcceptButton && status == 'pending')
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _declinePrescription(messageDocId);
-                      },
-                      icon: const Icon(Icons.close, size: 16),
-                      label: const Text('Decline'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        _acceptPrescription(messageData, messageDocId);
-                      },
-                      icon: const Icon(Icons.check, size: 16),
-                      label: const Text('Accept'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+          ),
+          if (isCurrUser) const SizedBox(width: 8),
+          if (isCurrUser) _buildProfileAvatar(photoURL, 40),
+        ],
       ),
     );
   }

@@ -103,11 +103,11 @@ class _SignupDoctorPageState extends State<SignupDoctorPage> {
   Widget _buildTextField(String key, String label,
       {bool obscureText = false, bool readOnly = false, VoidCallback? onTap}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 25),
       decoration: BoxDecoration(
         color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: TextField(
         controller: _controllers[key],
@@ -128,76 +128,91 @@ class _SignupDoctorPageState extends State<SignupDoctorPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        height: double.infinity,
-        child: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.pushReplacementNamed(context, '/user-select');
+        }
+      },
+      child: Scaffold(
+        body: Stack(
           children: [
+            // Teal header with title
             Container(
-              height: 200,
+              height: 300,
               width: double.infinity,
               decoration: const BoxDecoration(
-                color: Color(0xFF43AF43),
+                color: Color(0xFF4DBFB8),
               ),
               child: const Center(
-                  child: Text(
-                'Sign Up',
-                style: TextStyle(
-                  color: Color(0xFFFFFFFF),
-                  fontSize: 26,
-                ),
-              )),
-            ),
-            Positioned(
-              top: 150,
-              left: 0,
-              right: 0,
-              height: MediaQuery.of(context).size.height - 150,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(50),
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildTextField('firstName', 'First Name:'),
-                      _buildTextField('lastName', 'Last Name:'),
-                      _buildTextField('dob', 'Date of Birth:',
-                          readOnly: true, onTap: _pickDate),
-                      _buildDropdownField('Gender:', ['Male', 'Female']),
-                      _buildTextField('mobileNo', 'Mobile No:'),
-                      _buildTextField('email', 'Email:'),
-                      _buildTextField(
-                          'medicalLicenseNumber', 'Medical License Number:'),
-                      _buildTextField(
-                          'stateProvince', 'State/Province of Licensure:'),
-                      _buildTextField('specialty', 'Specialty:'),
-                      _buildTextField(
-                          'yearsOfExperience', 'Years of Experience:'),
-                      _buildTextField(
-                          'medicalSchool', 'Medical School Attended:'),
-                      _buildTextField(
-                          'yearOfGraduation', 'Year of Graduation:'),
-                      _buildTextField('governmentId', 'Government-issued ID:'),
-                      _buildTextField('password', 'Password:',
-                          obscureText: true),
-                      _buildTextField('confirmPassword', 'Confirm Password:',
-                          obscureText: true),
-                      const SizedBox(height: 20),
-                      _buildSignUpButton(),
-                      const SizedBox(height: 20),
-                      _buildLoginRedirect(),
-                    ],
+                child: Text(
+                  'Sign Up',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ),
+            // White card with form
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(80),
+                  topRight: Radius.circular(80),
+                ),
+                child: Container(
+                  height: 650,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 40),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildTextField('firstName', 'First Name:'),
+                          _buildTextField('lastName', 'Last Name:'),
+                          _buildTextField('dob', 'Date of Birth:',
+                              readOnly: true, onTap: _pickDate),
+                          _buildDropdownField('Gender:', ['Male', 'Female']),
+                          _buildTextField('mobileNo', 'Mobile No:'),
+                          _buildTextField('email', 'Email:'),
+                          _buildTextField('medicalLicenseNumber',
+                              'Medical License Number:'),
+                          _buildTextField(
+                              'stateProvince', 'State/Province of Licensure:'),
+                          _buildTextField('specialty', 'Specialty:'),
+                          _buildTextField(
+                              'yearsOfExperience', 'Years of Experience:'),
+                          _buildTextField(
+                              'medicalSchool', 'Medical School Attended:'),
+                          _buildTextField(
+                              'yearOfGraduation', 'Year of Graduation:'),
+                          _buildTextField(
+                              'governmentId', 'Government-issued ID:'),
+                          _buildTextField('password', 'Password:',
+                              obscureText: true),
+                          _buildTextField(
+                              'confirmPassword', 'Confirm Password:',
+                              obscureText: true),
+                          const SizedBox(height: 20),
+                          _buildSignUpButton(),
+                          const SizedBox(height: 20),
+                          _buildLoginRedirect(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
           ],
         ),
       ),
@@ -206,11 +221,11 @@ class _SignupDoctorPageState extends State<SignupDoctorPage> {
 
   Widget _buildDropdownField(String label, List<String> items) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 25),
       decoration: BoxDecoration(
         color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedGender,
@@ -244,37 +259,47 @@ class _SignupDoctorPageState extends State<SignupDoctorPage> {
   }
 
   Widget _buildSignUpButton() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+    return SizedBox(
+      height: 50,
       child: ElevatedButton(
         onPressed: _signup,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF43AF43),
+          backgroundColor: const Color(0xFF4DBFB8),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(8),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
         ),
         child: const Text(
-          'Sign Up',
+          'SIGN UP',
           style: TextStyle(
-              color: Colors.black, fontSize: 16, fontWeight: FontWeight.w400),
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLoginRedirect() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 15),
+    return Center(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('Have an account?'),
+          const Text(
+            'Have an account? ',
+            style: TextStyle(color: Colors.black87, fontSize: 14),
+          ),
           GestureDetector(
             onTap: () => Navigator.pushReplacementNamed(context, '/login'),
-            child: const Text(' Login',
-                style: TextStyle(color: Color(0xFF43AF43))),
+            child: const Text(
+              'Login',
+              style: TextStyle(
+                color: Color(0xFF4DBFB8),
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
