@@ -48,13 +48,13 @@ class _MessagePageState extends State<MessagePage> {
                   decoration: InputDecoration(
                     hintText: 'Search',
                     border: InputBorder.none,
-                    icon: Icon(Icons.search, color: Color(0xFF43AF43)),
+                    icon: Icon(Icons.search, color: const Color(0xFF4DBFB8)),
                   ),
                 ),
               ),
             ],
           ),
-          backgroundColor: Color(0xFF43AF43),
+          backgroundColor: const Color(0xFF4DBFB8),
           shape: RoundedAppBarShape(), // Custom AppBar shape
         ),
       ),
@@ -193,7 +193,8 @@ class _MessagePageState extends State<MessagePage> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Container(
                 decoration: BoxDecoration(
-                  color: hasUnread ? Colors.green.shade50 : Colors.transparent,
+                  color:
+                      hasUnread ? const Color(0xFF4DBFB8) : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListTile(
@@ -226,8 +227,9 @@ class _MessagePageState extends State<MessagePage> {
                       Text(
                         lastTime,
                         style: TextStyle(
-                          color:
-                              hasUnread ? Colors.green : Colors.grey.shade400,
+                          color: hasUnread
+                              ? const Color(0xFF4DBFB8)
+                              : Colors.grey.shade400,
                           fontSize: 11,
                           fontWeight:
                               hasUnread ? FontWeight.bold : FontWeight.normal,

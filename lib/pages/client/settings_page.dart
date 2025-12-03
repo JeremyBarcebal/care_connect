@@ -295,7 +295,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Expanded(child: Text('Error updating information: $e')),
             ],
           ),
-          backgroundColor: Colors.red[700],
+          backgroundColor: const Color.fromARGB(255, 152, 4, 4),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
           shape:
@@ -336,8 +336,8 @@ class _SettingsPageState extends State<SettingsPage> {
               Stack(
                 children: [
                   Container(
-                    width: 120,
-                    height: 120,
+                    width: 100,
+                    height: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.grey[300],

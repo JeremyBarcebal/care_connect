@@ -78,7 +78,8 @@ class _ClientPageState extends State<ClientPage> {
                 top: Radius.circular(30), bottom: Radius.circular(30)),
             child: BottomNavigationBar(
               type: BottomNavigationBarType.fixed, // Fixed
-              backgroundColor: Color(0xFF43AF43), // <-- This works for fixed
+              backgroundColor:
+                  const Color(0xFF4DBFB8), // <-- This works for fixed
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.home),

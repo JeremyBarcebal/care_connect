@@ -141,7 +141,7 @@ class _ChatPageState extends State<ChatPage> {
               ],
             ),
             centerTitle: false,
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF4DBFB8),
             actions: [
               // Show prescription button only for doctors
               if (isDocVal)
@@ -314,7 +314,9 @@ class _ChatPageState extends State<ChatPage> {
               margin: const EdgeInsets.symmetric(vertical: 5),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isCurrUser ? Colors.green.shade100 : Colors.white,
+                color: isCurrUser
+                    ? const Color.fromARGB(255, 185, 246, 242)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border:
                     isCurrUser ? null : Border.all(color: Colors.grey.shade300),
@@ -333,7 +335,7 @@ class _ChatPageState extends State<ChatPage> {
                     sender,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCurrUser ? Colors.green : Colors.grey,
+                      color: isCurrUser ? const Color(0xFF4DBFB8) : Colors.grey,
                       fontSize: 11,
                     ),
                   ),
@@ -424,7 +426,7 @@ class _ChatPageState extends State<ChatPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.green.shade100,
+        color: const Color.fromARGB(255, 208, 233, 231),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -445,14 +447,15 @@ class _ChatPageState extends State<ChatPage> {
           // Prescription button for doctors
           if (isDocVal)
             IconButton(
-              icon: const Icon(Icons.local_pharmacy, color: Colors.green),
+              icon: const Icon(Icons.local_pharmacy,
+                  color: const Color(0xFF4DBFB8)),
               tooltip: 'Send Prescription',
               onPressed: _showSendPrescriptionDialog,
             ),
           _isSending
               ? const CircularProgressIndicator()
               : IconButton(
-                  icon: const Icon(Icons.send, color: Colors.green),
+                  icon: const Icon(Icons.send, color: const Color(0xFF4DBFB8)),
                   onPressed: _sendMessage,
                 ),
         ],
@@ -723,7 +726,7 @@ class _ChatPageState extends State<ChatPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Prescription accepted! Added to your tasks.'),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color(0xFF4DBFB8),
             duration: Duration(seconds: 2),
           ),
         );
@@ -854,7 +857,7 @@ class _ChatPageState extends State<ChatPage> {
   ) {
     final status = messageData['status'] ?? 'pending';
     final statusColor = status == 'accepted'
-        ? Colors.green
+        ? const Color(0xFF4DBFB8)
         : status == 'declined'
             ? Colors.red
             : Colors.orange;
@@ -877,7 +880,9 @@ class _ChatPageState extends State<ChatPage> {
               margin: const EdgeInsets.symmetric(vertical: 8),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isCurrUser ? Colors.blue.shade50 : Colors.green.shade50,
+                color: isCurrUser
+                    ? Colors.blue.shade50
+                    : const Color.fromARGB(255, 209, 242, 240),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: statusColor, width: 1.5),
                 boxShadow: [
@@ -901,14 +906,14 @@ class _ChatPageState extends State<ChatPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.local_pharmacy,
-                              size: 18, color: Colors.green),
+                              size: 18, color: const Color(0xFF4DBFB8)),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               sender,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.green,
+                                color: const Color(0xFF4DBFB8),
                                 fontSize: 12,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -1093,13 +1098,8 @@ class _ChatPageState extends State<ChatPage> {
                             icon: const Icon(Icons.check, size: 16),
                             label: const Text('Accept'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                            ),
+                                backgroundColor:
+                                    const Color.fromARGB(255, 186, 250, 246)),
                           ),
                         ],
                       ),
