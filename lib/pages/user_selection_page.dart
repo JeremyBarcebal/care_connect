@@ -25,137 +25,153 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        height: double.infinity,
-        child: Stack(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.pushReplacementNamed(context, '/login');
+        }
+      },
+      child: Scaffold(
+        body: Stack(
           children: [
+            // Teal header with logo
             Container(
-              height: 300,
+              height: 400,
               width: double.infinity,
               decoration: const BoxDecoration(
-                color: Color(0xFF43AF43),
+                color: Color(0xFF4DBFB8), // Teal color from login page
               ),
-              child: const Center(
-                  child: Image(
-                image: AssetImage('assets/logo.png'),
-                height: 200,
-                width: 300,
-              )),
-            ),
-            Positioned(
-              top: 250,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 50),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(50),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Image(
+                    image: AssetImage('assets/logo.png'),
+                    height: 300,
+                    width: 300,
                   ),
+                ],
+              ),
+            ),
+            // White card with selection options
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(80),
+                  topRight: Radius.circular(80),
                 ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 40),
-                      Container(
-                          margin: EdgeInsets.symmetric(horizontal: 20),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                userType = "patient";
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              // backgroundColor: Color(0xFF43AF43),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  height: 560,
+                  width: double.infinity,
+                  color: Colors.white,
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 50),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Patient button
+                          SizedBox(
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  userType = "patient";
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: userType == "patient"
+                                    ? const Color(0xFF4DBFB8)
+                                    : Colors.white,
                                 side: BorderSide(
                                   color: userType == "patient"
-                                      ? Color(0xFF43AF43)
-                                      : Colors
-                                          .transparent, // Conditional border color
-                                  width: 2, // Border width
+                                      ? const Color(0xFF4DBFB8)
+                                      : Colors.grey[300]!,
+                                  width: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 40, vertical: 15),
-                            ),
-                            child: const Text(
-                              'Patient',
-                              style: TextStyle(
-                                color: Colors.black, // Text color
-                                fontSize: 16, // Text size
-                                fontWeight:
-                                    FontWeight.w400, // Optional: Bold text
+                              child: Text(
+                                'Patient',
+                                style: TextStyle(
+                                  color: userType == "patient"
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                          )),
-                      const SizedBox(height: 40),
-                      Container(
-                          margin: EdgeInsets.symmetric(horizontal: 20),
-                          child: ElevatedButton(
-                            onPressed: () {
-                              setState(() {
-                                userType = "doctor";
-                              });
-                            },
-                            style: ElevatedButton.styleFrom(
-                              // backgroundColor: Color(0xFF43AF43),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                          ),
+                          const SizedBox(height: 20),
+                          // Doctor button
+                          SizedBox(
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  userType = "doctor";
+                                });
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: userType == "doctor"
+                                    ? const Color(0xFF4DBFB8)
+                                    : Colors.white,
                                 side: BorderSide(
                                   color: userType == "doctor"
-                                      ? Color(0xFF43AF43)
-                                      : Colors
-                                          .transparent, // Conditional border color
-                                  width: 2, // Border width
+                                      ? const Color(0xFF4DBFB8)
+                                      : Colors.grey[300]!,
+                                  width: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 40, vertical: 15),
-                            ),
-                            child: const Text(
-                              'Doctor',
-                              style: TextStyle(
-                                color: Colors.black, // Text color
-                                fontSize: 16, // Text size
-                                fontWeight:
-                                    FontWeight.w400, // Optional: Bold text
+                              child: Text(
+                                'Doctor',
+                                style: TextStyle(
+                                  color: userType == "doctor"
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                          )),
-                      const SizedBox(height: 40),
-                      Container(
-                          margin: EdgeInsets.symmetric(horizontal: 20),
-                          child: ElevatedButton(
-                            onPressed: _onProceed,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF43AF43),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                          ),
+                          const SizedBox(height: 32),
+                          // Proceed button
+                          SizedBox(
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _onProceed,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4DBFB8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                               ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 40, vertical: 15),
-                            ),
-                            child: const Text(
-                              'Proceed',
-                              style: TextStyle(
-                                color: Colors.black, // Text color
-                                fontSize: 16, // Text size
-                                fontWeight:
-                                    FontWeight.w400, // Optional: Bold text
+                              child: const Text(
+                                'PROCEED',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
-                          )),
-                    ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            )
           ],
         ),
       ),

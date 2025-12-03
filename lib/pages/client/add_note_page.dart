@@ -103,7 +103,7 @@ class _AddNotePageState extends State<AddNotePage> {
         Navigator.pop(context); // Close the dialog after saving
       }
     } catch (e) {
-      print("Failed to add note: $e");
+      print("Failed to Health Assesment: $e");
     }
   }
 
@@ -137,7 +137,7 @@ class _AddNotePageState extends State<AddNotePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Note'),
+        title: const Text('Add Health Assessment Note'),
         actions: [
           IconButton(
             icon: const Icon(Icons.close),

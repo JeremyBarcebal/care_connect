@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 class NotificationPage extends StatefulWidget {
   @override
   _NotificationPageState createState() => _NotificationPageState();
@@ -14,7 +13,7 @@ class _NotificationPageState extends State<NotificationPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Notifications'),
-        backgroundColor: Colors.green,
+        backgroundColor: Color.fromARGB(255, 191, 77, 77),
         centerTitle: true,
       ),
       body: ListView.builder(

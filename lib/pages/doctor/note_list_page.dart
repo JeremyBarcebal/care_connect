@@ -1,5 +1,5 @@
 import 'package:care_connect/main.dart';
-import 'package:care_connect/pages/client/add_note_page.dart';
+//import 'package:care_connect/pages/client/add_note_page.dart';
 import 'package:care_connect/pages/doctor/note_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

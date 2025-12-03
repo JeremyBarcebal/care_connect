@@ -280,13 +280,18 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
         }
       }
 
-      // Send prescription message to chat
-      await FirebaseFirestore.instance
-          .collection('chats')
-          .doc(widget.chatDocumentId)
-          .collection('convo')
-          .add({
-        'type': 'prescription',
+      // Save prescription under patient's account (single source of truth)
+      final prescriptionsRef = FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(_patientId)
+          .collection('prescriptions');
+
+      final newPrescriptionRef = prescriptionsRef.doc();
+      final prescriptionId = newPrescriptionRef.id;
+
+      final prescriptionData = {
+        'prescriptionId': prescriptionId,
+        'doctorId': FirebaseAuth.instance.currentUser?.uid,
         'patientId': _patientId,
         'patientName': _patientName,
         'medicines': _medicines
@@ -301,9 +306,33 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
                 })
             .toList(),
         'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      await newPrescriptionRef.set(prescriptionData);
+
+      // Add lightweight chat message referencing the prescription
+      final chatMsgRef = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatDocumentId)
+          .collection('convo')
+          .add({
+        'type': 'prescription_ref',
+        'prescriptionId': prescriptionId,
+        'summary': {
+          'firstMedicine':
+              _medicines.isNotEmpty ? _medicines[0].medicineName : '',
+          'count': _medicines.length,
+        },
+        'patientId': _patientId,
+        'patientName': _patientName,
+        'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
         'sender': FirebaseAuth.instance.currentUser?.uid,
       });
+
+      // Update prescription doc with chat message id for cross-reference
+      await newPrescriptionRef.update({'chatMessageId': chatMsgRef.id});
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

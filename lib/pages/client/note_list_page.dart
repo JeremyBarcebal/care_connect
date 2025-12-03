@@ -75,13 +75,13 @@ class _NoteListPageState extends State<NoteListPage> {
             children: [
               const SizedBox(height: 20),
               Text(
-                "My Notes",
+                "Consultation Requests Notes",
                 style: TextStyle(fontSize: 20, color: Colors.white),
               ),
             ],
           ),
           centerTitle: true,
-          backgroundColor: const Color(0xFF43AF43),
+          backgroundColor: const Color(0xFF4DBFB8),
           shape: RoundedAppBarShape(), // Custom AppBar shape
         ),
       ),
@@ -127,19 +127,6 @@ class _NoteListPageState extends State<NoteListPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Navigator.pushReplacementNamed(context, '/add-note');
-          final userData = UserDataProvider.of(context)?.userData;
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AddNotePage(userData)),
-          );
-        },
-        child: const Icon(Icons.add, color: Colors.white),
-        tooltip: 'Add Note',
-        backgroundColor: const Color(0xFF43AF43),
-      ),
     );
   }
 }
@@ -160,7 +147,7 @@ class NoteItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF43AF43),
+          color: const Color(0xFF4DBFB8),
           borderRadius: BorderRadius.circular(12),
         ),
         child: ListTile(

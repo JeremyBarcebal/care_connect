@@ -15,7 +15,10 @@ class _NotificationPageState extends State<NotificationPage> {
   void initState() {
     super.initState();
     // Initialize the notifications collection reference
-    notificationsCollection = FirebaseFirestore.instance.collection('accounts').doc(_auth.currentUser?.uid).collection('notifications');
+    notificationsCollection = FirebaseFirestore.instance
+        .collection('accounts')
+        .doc(_auth.currentUser?.uid)
+        .collection('notifications');
   }
 
   @override
@@ -23,11 +26,13 @@ class _NotificationPageState extends State<NotificationPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Notifications'),
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFF4DBFB8),
         centerTitle: true,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: notificationsCollection.orderBy('timestamp', descending: true).snapshots(),
+        stream: notificationsCollection
+            .orderBy('timestamp', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
@@ -45,8 +50,11 @@ class _NotificationPageState extends State<NotificationPage> {
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               var notification = notifications[index];
-              String content = notification['message']; // Assuming the notification document has a 'content' field
-              String timestamp = notification['timestamp'].toDate().toString(); // Assuming there is a 'timestamp' field
+              String content = notification[
+                  'message']; // Assuming the notification document has a 'content' field
+              String timestamp = notification['timestamp']
+                  .toDate()
+                  .toString(); // Assuming there is a 'timestamp' field
 
               // Format the timestamp if needed
               String formattedTime = _formatTimestamp(timestamp);
@@ -55,12 +63,12 @@ class _NotificationPageState extends State<NotificationPage> {
                 margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 padding: EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade100,
+                  color: Color.fromRGBO(154, 203, 208, 10),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.person, size: 40, color: Colors.green),
+                    Icon(Icons.person, size: 40, color: Color(0xFF4DBFB8)),
                     SizedBox(width: 10),
                     Expanded(
                       child: Column(
