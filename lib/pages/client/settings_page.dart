@@ -223,7 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Expanded(child: Text('Error uploading photo: $e')),
             ],
           ),
-          backgroundColor: Colors.red[700],
+          backgroundColor:Color(0xFF4DBFB8),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
           shape:
@@ -493,7 +493,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: const Icon(Icons.logout),
                   label: const Text('Logout'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: Color(0xFF4DBFB8),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
