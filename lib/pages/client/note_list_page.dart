@@ -50,14 +50,18 @@ class _NoteListPageState extends State<NoteListPage> {
           .where('type', isEqualTo: 'doctor')
           .get();
 
-      setState(() {
-        doctors =
-            querySnapshot.docs.map((doc) => Doctor.fromFirestore(doc)).toList();
-        // Set default dropdown value if there are doctors available
-        if (doctors.isNotEmpty) {
-          dropdownValue = doctors.first.id;
-        }
-      });
+      // Check if widget is still mounted before calling setState
+      if (mounted) {
+        setState(() {
+          doctors = querySnapshot.docs
+              .map((doc) => Doctor.fromFirestore(doc))
+              .toList();
+          // Set default dropdown value if there are doctors available
+          if (doctors.isNotEmpty) {
+            dropdownValue = doctors.first.id;
+          }
+        });
+      }
     } catch (e) {
       print("Failed to fetch doctors: $e");
     }

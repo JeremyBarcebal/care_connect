@@ -324,6 +324,7 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(
         title: const Text('Settings'),
         backgroundColor: const Color(0xFF4DBFB8),
+        foregroundColor: Colors.white,
         centerTitle: true,
       ),
       body: SingleChildScrollView(

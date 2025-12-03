@@ -99,7 +99,8 @@ class _TaskPageState extends State<TaskPage> {
           // Teal header with calendar
           Container(
             color: Color(0xFF4DBFB8),
-            padding: EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+            height: 221,
+            padding: EdgeInsets.symmetric(vertical: 50, horizontal: 16),
             child: Column(
               children: [
                 // Month navigation
