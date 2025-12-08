@@ -77,19 +77,19 @@ class _SettingsPageState extends State<SettingsPage> {
           _controllers['emergencyContact']!.text =
               userDoc['emergencyContact'] ?? '';
           _controllers['governmentId']!.text = userDoc['governmentId'] ?? '';
-          // Safe access to photoURL - use .get() method with null coalescing
+          // Safe access to photo - use .get() method with null coalescing
           _profilePhotoUrl =
-              (userDoc.data() as Map?)?.containsKey('photoURL') == true
-                  ? userDoc['photoURL']
+              (userDoc.data() as Map?)?.containsKey('photo') == true
+                  ? userDoc['photo']
                   : user.photoURL;
         });
 
-        // If photoURL field doesn't exist, add it to the document
-        if ((userDoc.data() as Map?)?.containsKey('photoURL') != true) {
+        // If photo field doesn't exist, add it to the document
+        if ((userDoc.data() as Map?)?.containsKey('photo') != true) {
           await _firestore.collection('accounts').doc(user.uid).update({
-            'photoURL': user.photoURL ?? '',
+            'photo': user.photoURL ?? '',
           }).catchError((e) {
-            print('Error adding photoURL field: $e');
+            print('Error adding photo field: $e');
           });
         }
       }
@@ -180,7 +180,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
         // Update in Firestore (store Base64 directly)
         await _firestore.collection('accounts').doc(user.uid).update({
-          'photoURL': dataUrl,
+          'photo': dataUrl,
         });
 
         await user.reload();
@@ -223,7 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Expanded(child: Text('Error uploading photo: $e')),
             ],
           ),
-          backgroundColor:Color(0xFF4DBFB8),
+          backgroundColor: Color(0xFF4DBFB8),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
           shape:
