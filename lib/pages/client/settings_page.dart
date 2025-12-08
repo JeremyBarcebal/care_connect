@@ -77,19 +77,19 @@ class _SettingsPageState extends State<SettingsPage> {
           _controllers['emergencyContact']!.text =
               userDoc['emergencyContact'] ?? '';
           _controllers['governmentId']!.text = userDoc['governmentId'] ?? '';
-          // Safe access to photoURL - use .get() method with null coalescing
+          // Safe access to photo - use .get() method with null coalescing
           _profilePhotoUrl =
-              (userDoc.data() as Map?)?.containsKey('photoURL') == true
-                  ? userDoc['photoURL']
+              (userDoc.data() as Map?)?.containsKey('photo') == true
+                  ? userDoc['photo']
                   : user.photoURL;
         });
 
-        // If photoURL field doesn't exist, add it to the document
-        if ((userDoc.data() as Map?)?.containsKey('photoURL') != true) {
+        // If photo field doesn't exist, add it to the document
+        if ((userDoc.data() as Map?)?.containsKey('photo') != true) {
           await _firestore.collection('accounts').doc(user.uid).update({
-            'photoURL': user.photoURL ?? '',
+            'photo': user.photoURL ?? '',
           }).catchError((e) {
-            print('Error adding photoURL field: $e');
+            print('Error adding photo field: $e');
           });
         }
       }
@@ -180,7 +180,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
         // Update in Firestore (store Base64 directly)
         await _firestore.collection('accounts').doc(user.uid).update({
-          'photoURL': dataUrl,
+          'photo': dataUrl,
         });
 
         await user.reload();
@@ -223,7 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Expanded(child: Text('Error uploading photo: $e')),
             ],
           ),
-          backgroundColor:Color(0xFF4DBFB8),
+          backgroundColor: Color(0xFF4DBFB8),
           duration: const Duration(seconds: 3),
           behavior: SnackBarBehavior.floating,
           shape:
@@ -323,7 +323,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: const Color(0xFF4DBFB8),
+        backgroundColor: const Color(0xFF48A6A7),
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
@@ -399,13 +399,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[300]!),
+                  border: Border.all(color: Colors.grey[200]!),
                 ),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     // Personal Information Section
-                    _buildSectionHeader('Personal Information'),
+                    _buildSectionHeader('Personal Information' ),
                     _buildEditableField(
                         'name', 'Full Name', Icons.person, TextInputType.text),
                     const SizedBox(height: 12),
@@ -469,9 +469,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     ElevatedButton(
                       onPressed: _cancelEdit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[400],
+                        backgroundColor: const Color.fromARGB(255, 255, 253, 253),
                       ),
-                      child: const Text('Cancel'),
+                      child: const Text('Cancel', style: TextStyle(color: Color(0xFF006A71)),)
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
@@ -479,7 +479,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4DBFB8),
                       ),
-                      child: const Text('Save'),
+                      child: const Text('Save',  style: TextStyle(color: Color.fromARGB(255, 255, 255, 255))),
                     ),
                   ],
                 ),
@@ -493,7 +493,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: const Icon(Icons.logout),
                   label: const Text('Logout'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF4DBFB8),
+                    backgroundColor: Color(0xFF006A71),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -515,9 +515,9 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Text(
           title,
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4DBFB8),
+            color: Color(0xFF006A71),
           ),
         ),
       ),
@@ -538,7 +538,7 @@ class _SettingsPageState extends State<SettingsPage> {
               label,
               style: const TextStyle(
                   color: Colors.grey,
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.w500),
             ),
             subtitle: Text(

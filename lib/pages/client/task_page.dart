@@ -98,7 +98,7 @@ class _TaskPageState extends State<TaskPage> {
         children: [
           // Teal header with calendar
           Container(
-            color: Color(0xFF4DBFB8),
+            color: Color(0xFF48A6A7),
             height: 221,
             padding: EdgeInsets.symmetric(vertical: 50, horizontal: 16),
             child: Column(
@@ -216,14 +216,17 @@ class _TaskPageState extends State<TaskPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // TODAY'S TASK Header
-                        Text(
-                          "TODAY'S TASK",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4DBFB8),
-                          ),
-                        ),
+                        Center(
+                           child: Text(
+                                "TODAY'S TASK",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF006A71),
+                              ),
+                            ),  
+                       ),
                         SizedBox(height: 16),
                         // Task List
                         ListView.separated(
@@ -314,11 +317,11 @@ class _TaskItemState extends State<TaskItem> {
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
             color: widget.status == 'completed'
-                ? Color(0xFF4DBFB8).withOpacity(0.3)
+                ? Color(0xFF9ACBD0).withOpacity(0.15)
                 : Color(0xFF4DBFB8),
             borderRadius: BorderRadius.circular(12),
             border: widget.status == 'completed'
-                ? Border.all(color: Color(0xFF4DBFB8), width: 2)
+                ? Border.all(color: Color.fromARGB(255, 80, 207, 198), width: 2)
                 : null,
             boxShadow: _isExpanded
                 ? [
@@ -355,8 +358,8 @@ class _TaskItemState extends State<TaskItem> {
                                 style: TextStyle(
                                   color: widget.status == 'completed'
                                       ? Color(0xFF4DBFB8)
-                                      : Colors.white,
-                                  fontSize: 14,
+                                      : Color(0xFF006A71),
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   decoration: widget.status == 'completed'
                                       ? TextDecoration.lineThrough
@@ -372,13 +375,13 @@ class _TaskItemState extends State<TaskItem> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Color(0xFF006A71),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text(
                               'Accepted',
                               style: TextStyle(
-                                color: Color(0xFF4DBFB8),
+                                color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -389,13 +392,13 @@ class _TaskItemState extends State<TaskItem> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: Color(0xFF006A71),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: const Text(
                               'Completed',
                               style: TextStyle(
-                                color: Color(0xFF4DBFB8),
+                                color: Color.fromARGB(255, 255, 255, 255),
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -407,13 +410,14 @@ class _TaskItemState extends State<TaskItem> {
                     // Doctor/Patient info row
                     Row(
                       children: [
-                        Icon(Icons.person, color: Colors.white, size: 14),
+                        Icon(Icons.person, color: Color(0xFF006A71), size: 16),
                         const SizedBox(width: 4),
                         Text(
                           'Jeremy Barcebal (Doctor)',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFF006A71),
                             fontSize: 12,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ],
@@ -423,7 +427,7 @@ class _TaskItemState extends State<TaskItem> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color:Color.fromARGB(255, 10, 141, 156).withOpacity(0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Column(
@@ -433,24 +437,24 @@ class _TaskItemState extends State<TaskItem> {
                             Text(
                               'Medicine: ${widget.medicineType}',
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                                color: Color.fromARGB(255, 11, 74, 74),
+                                fontSize: 10,
                               ),
                             ),
                           if (widget.dosage.isNotEmpty)
                             Text(
                               'Dosage: ${_formatDosage(widget.dosage, widget.medicineType)}',
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                                color: Color.fromARGB(255, 11, 74, 74),
+                                fontSize: 10,
                               ),
                             ),
                           if (widget.frequency.isNotEmpty)
                             Text(
                               'Frequency: ${widget.frequency}',
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
+                                color: Color.fromARGB(255, 11, 74, 74),
+                                fontSize: 10,
                               ),
                             ),
                         ],
@@ -461,12 +465,12 @@ class _TaskItemState extends State<TaskItem> {
                     Row(
                       children: [
                         const Icon(Icons.access_time,
-                            color: Colors.white, size: 14),
+                            color: Color.fromARGB(255, 7, 48, 51), size: 14),
                         const SizedBox(width: 4),
                         Text(
                           'Time: ${widget.time} A.M.',
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: Color.fromARGB(255, 7, 48, 51),
                             fontSize: 11,
                           ),
                         ),
@@ -578,7 +582,7 @@ class _TaskItemState extends State<TaskItem> {
                             label: const Text('Mark as Complete'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              foregroundColor: Color(0xFF4DBFB8),
+                              foregroundColor: Color.fromARGB(255, 4, 43, 40),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                           ),

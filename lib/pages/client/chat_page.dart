@@ -26,6 +26,9 @@ class _ChatPageState extends State<ChatPage> {
   // Cache for profile photos to avoid repeated fetches
   final Map<String, String?> _photoCache = {};
 
+  // Cache for prescriptions to avoid repeated fetches
+  final Map<String, Map<String, dynamic>> _prescriptionCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +57,7 @@ class _ChatPageState extends State<ChatPage> {
           .get(const GetOptions(source: Source.cache));
       if (docSnapshot.exists) {
         var docData = docSnapshot.data() as Map<String, dynamic>;
-        _photoCache[doctorId] = docData['photoURL'];
+        _photoCache[doctorId] = docData['photo'];
       }
 
       // Load client photo
@@ -64,10 +67,52 @@ class _ChatPageState extends State<ChatPage> {
           .get(const GetOptions(source: Source.cache));
       if (clientSnapshot.exists) {
         var clientData = clientSnapshot.data() as Map<String, dynamic>;
-        _photoCache[clientId] = clientData['photoURL'];
+        _photoCache[clientId] = clientData['photo'];
       }
     } catch (e) {
       print('Error pre-loading photos: $e');
+    }
+  }
+
+  /// Fetch prescription with intelligent caching
+  /// First checks cache, then fetches from Firestore and caches the result
+  Future<Map<String, dynamic>> _fetchPrescriptionWithCache(
+    String patientId,
+    String prescriptionId,
+  ) async {
+    // Create a cache key
+    final cacheKey = '$patientId-$prescriptionId';
+
+    // Check if already in cache
+    if (_prescriptionCache.containsKey(cacheKey)) {
+      print('Loading prescription from cache: $cacheKey');
+      return _prescriptionCache[cacheKey]!;
+    }
+
+    // Not in cache, fetch from Firestore
+    print('Fetching prescription from Firestore: $cacheKey');
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(patientId)
+          .collection('prescriptions')
+          .doc(prescriptionId)
+          .get();
+
+      if (!doc.exists) {
+        throw Exception('Prescription document not found');
+      }
+
+      final presData = doc.data() as Map<String, dynamic>;
+
+      // Store in cache for future use
+      _prescriptionCache[cacheKey] = presData;
+      print('Prescription cached: $cacheKey');
+
+      return presData;
+    } catch (e) {
+      print('Error fetching prescription: $e');
+      rethrow;
     }
   }
 
@@ -91,11 +136,11 @@ class _ChatPageState extends State<ChatPage> {
           .doc(otherUserId)
           .get(),
       builder: (context, profileSnapshot) {
-        String? photoURL;
+        String? photo;
         if (profileSnapshot.hasData && profileSnapshot.data!.exists) {
           try {
             var data = profileSnapshot.data!.data() as Map<String, dynamic>;
-            photoURL = data['photoURL'];
+            photo = data['photo'];
           } catch (e) {
             print('Error loading profile photo: $e');
           }
@@ -111,7 +156,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             title: Row(
               children: [
-                _buildProfileAvatar(photoURL, 40),
+                _buildProfileAvatar(photo, 40),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -204,7 +249,7 @@ class _ChatPageState extends State<ChatPage> {
 
                         // Determine which user's photo to load based on message sender
                         var senderUserId = messageData['sender'] as String?;
-                        var cachedPhotoURL = _photoCache[senderUserId ?? ''];
+                        var cachedPhoto = _photoCache[senderUserId ?? ''];
 
                         // Check if this is a prescription message or a prescription reference
                         if (messageData['type'] == 'prescription') {
@@ -217,7 +262,7 @@ class _ChatPageState extends State<ChatPage> {
                             isPatient &&
                                 !isCurrUser, // Show accept button only for patient receiving
                             messageData.id, // Pass message document ID
-                            cachedPhotoURL,
+                            cachedPhoto,
                           );
                         } else if (messageData['type'] == 'prescription_ref') {
                           // Lazy fetch the full prescription document referenced by this chat message
@@ -228,26 +273,41 @@ class _ChatPageState extends State<ChatPage> {
                             return const Text('Invalid prescription reference');
                           }
 
-                          return FutureBuilder<DocumentSnapshot>(
-                            future: FirebaseFirestore.instance
-                                .collection('accounts')
-                                .doc(patientId)
-                                .collection('prescriptions')
-                                .doc(prescriptionId)
-                                .get(const GetOptions(source: Source.cache)),
+                          return FutureBuilder<Map<String, dynamic>>(
+                            future: _fetchPrescriptionWithCache(
+                                patientId, prescriptionId),
                             builder: (context, snap) {
                               if (snap.connectionState ==
                                   ConnectionState.waiting) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: CircularProgressIndicator(),
+                                return Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildProfileAvatar(cachedPhoto, 32),
+                                      const SizedBox(width: 8),
+                                      const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 );
                               }
-                              if (!snap.hasData || !snap.data!.exists) {
+                              if (snap.hasError) {
+                                return Text(
+                                    'Error loading prescription: ${snap.error}');
+                              }
+                              if (!snap.hasData) {
                                 return const Text('Prescription not found');
                               }
-                              final presData =
-                                  snap.data!.data() as Map<String, dynamic>;
+                              final presData = snap.data!;
 
                               // Overlay chat-level status if present
                               presData['status'] = messageData['status'] ??
@@ -264,7 +324,7 @@ class _ChatPageState extends State<ChatPage> {
                                 isCurrUser,
                                 isPatient && !isCurrUser,
                                 messageData.id,
-                                cachedPhotoURL,
+                                cachedPhoto,
                               );
                             },
                           );
@@ -276,7 +336,7 @@ class _ChatPageState extends State<ChatPage> {
                                 : widget.chatData['clientName'],
                             messageData['message'],
                             isCurrUser,
-                            cachedPhotoURL,
+                            cachedPhoto,
                           );
                         }
                       },
@@ -295,7 +355,7 @@ class _ChatPageState extends State<ChatPage> {
 
   // Message Row
   Widget _buildMessageRow(
-      String sender, String message, bool isCurrUser, String? photoURL) {
+      String sender, String message, bool isCurrUser, String? photo) {
     return Align(
       alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
@@ -304,7 +364,7 @@ class _ChatPageState extends State<ChatPage> {
             isCurrUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isCurrUser) _buildProfileAvatar(photoURL, 32),
+          if (!isCurrUser) _buildProfileAvatar(photo, 32),
           if (!isCurrUser) const SizedBox(width: 8),
           ConstrainedBox(
             constraints: BoxConstraints(
@@ -315,8 +375,8 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCurrUser
-                    ? const Color.fromARGB(255, 185, 246, 242)
-                    : Colors.white,
+                    ? const Color(0xFF9ACBD0).withOpacity(0.3)
+                    : const Color.fromARGB(255, 226, 250, 250).withOpacity(0.8),
                 borderRadius: BorderRadius.circular(16),
                 border:
                     isCurrUser ? null : Border.all(color: Colors.grey.shade300),
@@ -335,7 +395,7 @@ class _ChatPageState extends State<ChatPage> {
                     sender,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCurrUser ? const Color(0xFF4DBFB8) : Colors.grey,
+                      color: isCurrUser ? const Color(0xFF006A71) : Colors.grey,
                       fontSize: 11,
                     ),
                   ),
@@ -349,23 +409,23 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           if (isCurrUser) const SizedBox(width: 8),
-          if (isCurrUser) _buildProfileAvatar(photoURL, 32),
+          if (isCurrUser) _buildProfileAvatar(photo, 32),
         ],
       ),
     );
   }
 
   // Build profile avatar with image or icon
-  Widget _buildProfileAvatar(String? photoURL, double size) {
+  Widget _buildProfileAvatar(String? photo, double size) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF4DBFB8),
+        color: Color(0xFF006A71).withOpacity(0.3),
       ),
-      child: photoURL != null && photoURL.isNotEmpty
-          ? _buildProfileImage(photoURL)
+      child: photo != null && photo.isNotEmpty
+          ? _buildProfileImage(photo)
           : Center(
               child: Icon(
                 Icons.person,
@@ -377,10 +437,10 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   // Build profile image from data URL or network
-  Widget _buildProfileImage(String photoURL) {
-    if (photoURL.startsWith('data:image')) {
+  Widget _buildProfileImage(String photo) {
+    if (photo.startsWith('data:image')) {
       try {
-        final parts = photoURL.split(',');
+        final parts = photo.split(',');
         if (parts.length > 1) {
           final base64String = parts[1];
           final decodedBytes = base64Decode(base64String);
@@ -407,7 +467,7 @@ class _ChatPageState extends State<ChatPage> {
     // Try to load as network image
     return ClipOval(
       child: Image.network(
-        photoURL,
+        photo,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return const Center(

@@ -80,12 +80,12 @@ class _NoteListPageState extends State<NoteListPage> {
               const SizedBox(height: 20),
               Text(
                 "Consultation Requests Notes",
-                style: TextStyle(fontSize: 20, color: Colors.white),
+                style: TextStyle(fontSize: 18, color: Color.fromARGB(255, 255, 255, 255)),
               ),
             ],
           ),
           centerTitle: true,
-          backgroundColor: const Color(0xFF4DBFB8),
+          backgroundColor:  Color(0xFF48A6A7),
           shape: RoundedAppBarShape(), // Custom AppBar shape
         ),
       ),
@@ -148,10 +148,10 @@ class NoteItem extends StatelessWidget {
     String name = note['clientName'];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 5.0),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF4DBFB8),
+          color: const Color.fromRGBO(0, 106, 113, 1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: ListTile(

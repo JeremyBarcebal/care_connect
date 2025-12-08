@@ -61,12 +61,12 @@ class _ClientPageState extends State<ClientPage> {
             bottom: 25.0, right: 30.0, left: 30.0), // Add bottom margin here
         child: Container(
           decoration: BoxDecoration(
-            color: Color(0xFF4DBFB8), // Background color of the bar
+            color: Color(0xFF48A6A7), // Background color of the bar
             borderRadius: BorderRadius.vertical(
                 top: Radius.circular(30), bottom: Radius.circular(30)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.1),
                 blurRadius: 10.0,
                 spreadRadius: 2.0,
                 offset: const Offset(0, -2), // Shadow below the bar

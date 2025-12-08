@@ -113,8 +113,8 @@ class _AddNotePageState extends State<AddNotePage> {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(20),
+        color: Color(0xFF9ACBD0).withOpacity(0.3),
+        borderRadius: BorderRadius.circular(15),
       ),
       child: TextField(
         controller: _controllers[key],
@@ -124,8 +124,9 @@ class _AddNotePageState extends State<AddNotePage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-            color: Colors.black,
+            color: Color.fromARGB(255, 12, 55, 52),
             fontWeight: FontWeight.w400,
+            fontSize: 16
           ),
           border: InputBorder.none,
         ),
@@ -134,13 +135,21 @@ class _AddNotePageState extends State<AddNotePage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Health Assessment Note'),
+ Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(
+      backgroundColor: Color(0xFF48A6A7),
+      title: const Text(
+        'Add Health Assessment Note',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.w500,   
+        ),
+      ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close,color: Colors.white,),
             onPressed: () {
               Navigator.pop(context);
             },
@@ -154,33 +163,46 @@ class _AddNotePageState extends State<AddNotePage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Text('Symptoms:'),
+              const Text('Symptoms:',style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF006A71),
+              fontWeight: FontWeight.w500),
+              ),
               _buildTextField('bodyTemperature', 'Body Temperature:'),
               const SizedBox(height: 5.0),
               _buildTextField('painLocation', 'Pain Location:'),
               const SizedBox(height: 5.0),
               _buildTextField('painIntensity', 'Pain Intensity:'),
               const SizedBox(height: 5.0),
-              const Text("Patient's Description:"),
+              const Text("Patient's Description:", style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF006A71),
+              fontWeight: FontWeight.w500)),
               const SizedBox(height: 5.0),
               _buildTextField('patientFeels', 'How the Patient Feels:'),
               const SizedBox(height: 5.0),
               _buildTextField('onsetSymptoms', 'Onset of Symptoms:'),
               const SizedBox(height: 5.0),
-              const Text("Medications:"),
+              const Text("Medications:", style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF006A71),
+              fontWeight: FontWeight.w500)),
               const SizedBox(height: 5.0),
               _buildTextField('currentMedication', 'Current Medications:'),
               const SizedBox(height: 5.0),
               _buildTextField('medicationPrescribe', 'Medication Prescribed:'),
               const SizedBox(height: 5.0),
-              const Text("Assigned Doctor:"),
+              const Text("Assigned Doctor:", style: TextStyle(
+              fontSize: 13,
+              color: Color(0xFF006A71),
+              fontWeight: FontWeight.w500)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 margin:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(20),
+                  color: Color(0xFF9ACBD0).withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(15),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
@@ -200,7 +222,7 @@ class _AddNotePageState extends State<AddNotePage> {
                       });
                     },
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    style: const TextStyle(color: Colors.black),
+                    style: const TextStyle(color: Color.fromARGB(255, 2, 45, 49)),
                   ),
                 ),
               ),
@@ -212,7 +234,10 @@ class _AddNotePageState extends State<AddNotePage> {
                     onPressed: () {
                       Navigator.of(context).pop();
                     },
-                    child: const Text('Close'),
+                    child: const Text('Close',style: TextStyle(
+                    color: Color(0xFF006A71), 
+                    fontWeight: FontWeight.bold,),
+                  ),
                   ),
                   const SizedBox(width: 8.0),
                   _isLoading
@@ -222,7 +247,10 @@ class _AddNotePageState extends State<AddNotePage> {
                         )
                       : ElevatedButton(
                           onPressed: saveNote,
-                          child: const Text('Save'),
+                          child: const Text('Save',style: TextStyle(
+                    color: Color(0xFF006A71),
+                    fontWeight: FontWeight.bold,),
+                          ),
                         ),
                 ],
               ),
