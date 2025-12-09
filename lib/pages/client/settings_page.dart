@@ -419,7 +419,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   children: [
                     // Personal Information Section
-                    _buildSectionHeader('Personal Information'),
+                    _buildSectionHeader('Personal Information' ),
                     _buildEditableField(
                         'name', 'Full Name', Icons.person, TextInputType.text),
                     const SizedBox(height: 12),
