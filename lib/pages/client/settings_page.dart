@@ -41,6 +41,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   String? _profilePhotoUrl;
   File? _selectedImage;
+  bool _isPickingImage = false; // Flag to prevent multiple picker calls
 
   @override
   void initState() {
@@ -97,6 +98,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _pickImage() async {
+    // Prevent multiple simultaneous image picker calls
+    if (_isPickingImage) {
+      return;
+    }
+
+    _isPickingImage = true;
+
     try {
       final XFile? pickedFile =
           await _imagePicker.pickImage(source: ImageSource.gallery);
@@ -108,23 +116,29 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       print('Error picking image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(child: Text('Error picking image: $e')),
-            ],
+
+      // Only show error if it's not the "already_active" error (user cancelled)
+      if (!e.toString().contains('already_active')) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Error picking image: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            margin: const EdgeInsets.all(16),
           ),
-          backgroundColor: Colors.red[700],
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+        );
+      }
+    } finally {
+      _isPickingImage = false; // Reset flag when done
     }
   }
 
@@ -323,7 +337,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        backgroundColor: const Color(0xFF4DBFB8),
+        backgroundColor: const Color(0xFF48A6A7),
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
@@ -382,7 +396,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               ),
                             )
                           : IconButton(
-                              onPressed: _pickImage,
+                              onPressed: _isPickingImage ? null : _pickImage,
                               icon: const Icon(Icons.camera_alt,
                                   color: Colors.white, size: 20),
                               padding: EdgeInsets.zero,
@@ -399,7 +413,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[300]!),
+                  border: Border.all(color: Colors.grey[200]!),
                 ),
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -467,19 +481,24 @@ class _SettingsPageState extends State<SettingsPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton(
-                      onPressed: _cancelEdit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[400],
-                      ),
-                      child: const Text('Cancel'),
-                    ),
+                        onPressed: _cancelEdit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              const Color.fromARGB(255, 255, 253, 253),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Color(0xFF006A71)),
+                        )),
                     const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: _saveUserInfo,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4DBFB8),
                       ),
-                      child: const Text('Save'),
+                      child: const Text('Save',
+                          style: TextStyle(
+                              color: Color.fromARGB(255, 255, 255, 255))),
                     ),
                   ],
                 ),
@@ -493,7 +512,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: const Icon(Icons.logout),
                   label: const Text('Logout'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF4DBFB8),
+                    backgroundColor: Color(0xFF006A71),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -515,9 +534,9 @@ class _SettingsPageState extends State<SettingsPage> {
         child: Text(
           title,
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4DBFB8),
+            color: Color(0xFF006A71),
           ),
         ),
       ),
@@ -538,7 +557,7 @@ class _SettingsPageState extends State<SettingsPage> {
               label,
               style: const TextStyle(
                   color: Colors.grey,
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
@@ -575,6 +594,17 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildProfileImage(String photoUrl) {
+    // Check if URL is valid and not a blob URL
+    if (photoUrl.isEmpty || photoUrl.startsWith('blob:')) {
+      return Center(
+        child: Icon(
+          Icons.person,
+          size: 60,
+          color: Colors.grey[600],
+        ),
+      );
+    }
+
     // Check if it's a data URL (Base64 encoded image)
     if (photoUrl.startsWith('data:image')) {
       try {
@@ -587,6 +617,7 @@ class _SettingsPageState extends State<SettingsPage> {
             decodedBytes,
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
+              print('Error loading base64 image: $error');
               return Center(
                 child: Icon(
                   Icons.person,
@@ -599,6 +630,13 @@ class _SettingsPageState extends State<SettingsPage> {
         }
       } catch (e) {
         print('Error decoding Base64 image: $e');
+        return Center(
+          child: Icon(
+            Icons.person,
+            size: 60,
+            color: Colors.grey[600],
+          ),
+        );
       }
     }
 
@@ -607,6 +645,7 @@ class _SettingsPageState extends State<SettingsPage> {
       photoUrl,
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) {
+        print('Error loading network image: $error');
         return Center(
           child: Icon(
             Icons.person,

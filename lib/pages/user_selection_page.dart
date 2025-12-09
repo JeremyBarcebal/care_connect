@@ -40,7 +40,7 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
               height: 400,
               width: double.infinity,
               decoration: const BoxDecoration(
-                color: Color(0xFF4DBFB8), // Teal color from login page
+                color: Color(0xFF48A6A7), // Teal color from login page
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -92,7 +92,7 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
                                   width: 2,
                                 ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(15),
                                 ),
                               ),
                               child: Text(
@@ -128,7 +128,7 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
                                   width: 2,
                                 ),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(15),
                                 ),
                               ),
                               child: Text(
@@ -150,16 +150,16 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
                             child: ElevatedButton(
                               onPressed: _onProceed,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4DBFB8),
+                                backgroundColor: const Color(0xFF006A71),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(15),
                                 ),
                               ),
                               child: const Text(
                                 'PROCEED',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 16,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),

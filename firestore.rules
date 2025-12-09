@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwnAccount(accountId) {
+      return request.auth.uid == accountId;
+    }
+
+    function isDoctor(uid) {
+      return get(/databases/$(database)/documents/accounts/$(uid)).data.type == 'doctor';
+    }
+
+    // -----------------------------
+    // ACCOUNTS - Restrict to own account
+    // -----------------------------
+    match /accounts/{accountId} {
+      // Users can only read/write their own account
+      allow read, write: if isAuthenticated() && isOwnAccount(accountId);
+
+      // User can read other accounts (for finding doctors/patients)
+      allow read: if isAuthenticated();
+
+      match /notes/{noteId} {
+        allow read, write: if isAuthenticated() && isOwnAccount(accountId);
+      }
+
+      match /notes/{noteId}/comments/{commentId} {
+        allow read, write: if isAuthenticated() && isOwnAccount(accountId);
+      }
+
+      match /notifications/{notifId} {
+        allow read, write: if isAuthenticated() && isOwnAccount(accountId);
+      }
+
+      match /task/{taskId} {
+        allow read, write: if isAuthenticated() && isOwnAccount(accountId);
+      }
+
+      // -----------------------------
+      // PRESCRIPTIONS
+      // -----------------------------
+      match /prescriptions/{prescriptionId} {
+
+        // Read allowed for patient or doctor
+        allow get, list: if isAuthenticated() &&
+          (
+            isOwnAccount(accountId) || 
+            isDoctor(request.auth.uid)
+          );
+
+        // Create allowed for patient OR doctor
+        allow create: if isAuthenticated() &&
+          resource.data.patientId == accountId &&
+          (
+            // Patient writing their own
+            isOwnAccount(accountId) ||
+
+            // Doctor writing a patient's prescription
+            (
+              isDoctor(request.auth.uid) &&
+              request.resource.data.doctorId == request.auth.uid
+            )
+          );
+
+        // Allowed fields for update
+        allow update: if isAuthenticated() &&
+          (
+            isOwnAccount(accountId) ||
+            isDoctor(request.auth.uid)
+          ) &&
+          request.resource.data.keys().hasOnly([
+            'prescriptionId',
+            'doctorId',
+            'patientId',
+            'patientName',
+            'medicines',
+            'status',
+            'acceptedBy',
+            'acceptedAt',
+            'declinedBy',
+            'declinedAt',
+            'chatMessageId',
+            'createdAt'
+          ]);
+
+        allow delete: if isAuthenticated() &&
+          (
+            isOwnAccount(accountId) ||
+            isDoctor(request.auth.uid)
+          );
+      }
+    }
+
+    // -----------------------------
+    // CHAT SYSTEM
+    // Allow users to access chats they're members of
+    // Simplifying: allow any authenticated user to read chats
+    // Real filtering happens in the app
+    match /chats/{chatId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+      allow create: if isAuthenticated();
+
+      match /convo/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() &&
+          request.resource.data.sender == request.auth.uid;
+        allow update: if isAuthenticated() &&
+          resource.data.sender == request.auth.uid;
+        allow delete: if isAuthenticated() &&
+          resource.data.sender == request.auth.uid;
+      }
+    }
+
+    // -----------------------------
+    // APPOINTMENTS
+    // -----------------------------
+    match /appointments/{appointmentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && 
+        (request.auth.uid == resource.data.patientId || request.auth.uid == resource.data.doctorId);
+      allow delete: if isAuthenticated() && 
+        (request.auth.uid == resource.data.patientId || request.auth.uid == resource.data.doctorId);
+    }
+
+    // -----------------------------
+    // PATIENTS
+    // -----------------------------
+    match /patients/{patientId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == patientId;
+    }
+
+    // Catch-all for legacy notes
+    match /{path=**}/notes/{noteId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

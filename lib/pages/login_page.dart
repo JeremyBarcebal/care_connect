@@ -116,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
             height: 400,
             width: double.infinity,
             decoration: const BoxDecoration(
-              color: Color(0xFF4DBFB8), // Teal color from mockup
+              color: Color(0xFF48A6A7), // Teal color from mockup
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -152,9 +152,9 @@ class _LoginPageState extends State<LoginPage> {
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 26),
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
                           child: TextField(
                             controller: _emailController,
                             decoration: const InputDecoration(
@@ -174,9 +174,9 @@ class _LoginPageState extends State<LoginPage> {
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
                           child: TextField(
                             controller: _passwordController,
                             obscureText: true,
@@ -201,9 +201,9 @@ class _LoginPageState extends State<LoginPage> {
                                 child: ElevatedButton(
                                   onPressed: _login,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF4DBFB8),
+                                    backgroundColor: const Color(0xFF006A71),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(15),
                                     ),
                                   ),
                                   child: const Text(
@@ -211,7 +211,7 @@ class _LoginPageState extends State<LoginPage> {
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: FontWeight.w400,
                                     ),
                                   ),
                                 ),
@@ -258,7 +258,7 @@ class _LoginPageState extends State<LoginPage> {
                             child: const Icon(
                               Icons.account_circle,
                               size: 32,
-                              color: Color(0xFF4DBFB8),
+                              color: Color(0xFF006A71),
                             ),
                           ),
                         ),

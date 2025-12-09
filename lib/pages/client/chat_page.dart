@@ -20,6 +20,7 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   bool _isSending = false;
+  bool _isAcceptingPrescription = false;
   final ScrollController _scrollController = ScrollController();
   late TaskService _taskService;
 
@@ -209,7 +210,7 @@ class _ChatPageState extends State<ChatPage> {
                       .doc(widget.chatDocumentId)
                       .collection('convo')
                       .orderBy('timestamp',
-                          descending: false) // Sort by timestamp
+                          descending: true) // Sort by timestamp (newest first)
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -218,27 +219,22 @@ class _ChatPageState extends State<ChatPage> {
 
                     var messages = snapshot.data!.docs;
 
-                    // Scroll to bottom - reset flag on new message count to handle new messages
+                    // Scroll to bottom when new message arrives
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scrollController.hasClients) {
-                        Future.delayed(const Duration(milliseconds: 100), () {
-                          if (_scrollController.hasClients) {
-                            _scrollController.animateTo(
-                              _scrollController.position.maxScrollExtent,
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.easeOut,
-                            );
-                          }
-                        });
+                      if (_scrollController.hasClients &&
+                          _scrollController.position.maxScrollExtent > 0) {
+                        _scrollController
+                            .jumpTo(0); // Jump to top (reversed list)
                       }
                     });
 
                     return ListView.builder(
                       controller: _scrollController,
+                      reverse: true, // Show newest messages at bottom
                       padding: const EdgeInsets.all(16),
                       itemCount: messages.length,
-                      addAutomaticKeepAlives: false,
-                      addRepaintBoundaries: false,
+                      addAutomaticKeepAlives: true,
+                      addRepaintBoundaries: true,
                       itemBuilder: (context, index) {
                         var messageData = messages[index];
                         User? user = FirebaseAuth.instance.currentUser;
@@ -375,8 +371,8 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCurrUser
-                    ? const Color.fromARGB(255, 185, 246, 242)
-                    : Colors.white,
+                    ? const Color(0xFF9ACBD0).withOpacity(0.3)
+                    : const Color.fromARGB(255, 226, 250, 250).withOpacity(0.8),
                 borderRadius: BorderRadius.circular(16),
                 border:
                     isCurrUser ? null : Border.all(color: Colors.grey.shade300),
@@ -395,7 +391,7 @@ class _ChatPageState extends State<ChatPage> {
                     sender,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCurrUser ? const Color(0xFF4DBFB8) : Colors.grey,
+                      color: isCurrUser ? const Color(0xFF006A71) : Colors.grey,
                       fontSize: 11,
                     ),
                   ),
@@ -422,7 +418,7 @@ class _ChatPageState extends State<ChatPage> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF4DBFB8),
+        color: Color(0xFF006A71).withOpacity(0.3),
       ),
       child: photo != null && photo.isNotEmpty
           ? _buildProfileImage(photo)
@@ -653,7 +649,9 @@ class _ChatPageState extends State<ChatPage> {
     String messageDocId,
   ) async {
     try {
-      setState(() {});
+      setState(() {
+        _isAcceptingPrescription = true;
+      });
 
       // If this message is a reference, load the full prescription doc
       if (prescription['prescriptionId'] != null &&
@@ -686,6 +684,25 @@ class _ChatPageState extends State<ChatPage> {
       final medicines = prescription['medicines'] as List<dynamic>? ?? [];
       print('Number of medicines: ${medicines.length}');
 
+      // Fetch doctor information if we have doctorId
+      String? doctorName;
+      final String? doctorId = prescription['doctorId'] as String?;
+      if (doctorId != null && doctorId.isNotEmpty) {
+        try {
+          final doctorDoc = await FirebaseFirestore.instance
+              .collection('accounts')
+              .doc(doctorId)
+              .get();
+          if (doctorDoc.exists) {
+            doctorName =
+                doctorDoc.data()?['name'] ?? doctorDoc.data()?['displayName'];
+            print('Doctor Name: $doctorName');
+          }
+        } catch (e) {
+          print('Failed to fetch doctor name: $e');
+        }
+      }
+
       if (medicines.isNotEmpty) {
         // Handle multiple medicines
         for (var med in medicines) {
@@ -708,6 +725,7 @@ class _ChatPageState extends State<ChatPage> {
             'frequency': (medicineMap['frequency'] ?? '').toString(),
             'duration': (medicineMap['duration'] ?? '').toString(),
             'remarks': (medicineMap['remarks'] ?? '').toString(),
+            if (doctorName != null) 'doctorName': doctorName,
           };
 
           print('  Medicine Metadata: $medicineMetadata');
@@ -781,6 +799,31 @@ class _ChatPageState extends State<ChatPage> {
           .collection('convo')
           .doc(messageDocId)
           .update({'status': 'accepted'});
+
+      // Create notification for doctor that patient accepted
+      final patientName =
+          FirebaseAuth.instance.currentUser?.displayName ?? 'Patient';
+      final medicineNames = prescription['medicineName'] ?? 'Medicine';
+
+      // Only create notification if we have a valid doctor ID
+      if (doctorId != null && doctorId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('accounts')
+            .doc(doctorId)
+            .collection('notifications')
+            .add({
+          'type': 'prescription_response',
+          'prescriptionId': prescription['prescriptionId'],
+          'message': '$patientName accepted your prescription',
+          'details': 'Medicine: $medicineNames',
+          'sender': FirebaseAuth.instance.currentUser?.uid,
+          'timestamp': FieldValue.serverTimestamp(),
+          'isNew': true,
+        });
+      } else {
+        print(
+            'Warning: Could not find doctor ID for prescription notification');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -884,6 +927,25 @@ class _ChatPageState extends State<ChatPage> {
           .collection('convo')
           .doc(messageDocId)
           .update({'status': 'declined'});
+
+      // Create notification for doctor that patient declined
+      final patientName =
+          FirebaseAuth.instance.currentUser?.displayName ?? 'Patient';
+      final medicineNames = msg?['medicineName'] ?? 'Medicine';
+
+      await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(msg?['sender'] ?? '')
+          .collection('notifications')
+          .add({
+        'type': 'prescription_response',
+        'prescriptionId': msg?['prescriptionId'],
+        'message': '$patientName declined your prescription',
+        'details': 'Medicine: $medicineNames',
+        'sender': FirebaseAuth.instance.currentUser?.uid,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isNew': true,
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1132,34 +1194,65 @@ class _ChatPageState extends State<ChatPage> {
                   if (showAcceptButton && status == 'pending')
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _declinePrescription(messageDocId);
-                            },
-                            icon: const Icon(Icons.close, size: 16),
-                            label: const Text('Decline'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton.icon(
+                              onPressed: _isAcceptingPrescription
+                                  ? null
+                                  : () {
+                                      _declinePrescription(messageDocId);
+                                    },
+                              icon: const Icon(Icons.close, size: 16),
+                              label: const Text('Decline'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 0,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _acceptPrescription(messageData, messageDocId);
-                            },
-                            icon: const Icon(Icons.check, size: 16),
-                            label: const Text('Accept'),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    const Color.fromARGB(255, 186, 250, 246)),
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton.icon(
+                              onPressed: _isAcceptingPrescription
+                                  ? null
+                                  : () {
+                                      _acceptPrescription(
+                                          messageData, messageDocId);
+                                    },
+                              icon: _isAcceptingPrescription
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(Icons.check, size: 16),
+                              label: _isAcceptingPrescription
+                                  ? const Text('Accepting...')
+                                  : const Text('Accept'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isAcceptingPrescription
+                                    ? Colors.grey
+                                    : const Color.fromARGB(255, 186, 250, 246),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 0,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
