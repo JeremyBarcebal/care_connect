@@ -118,7 +118,8 @@ class _MessagePageState extends State<MessagePage> {
     User? user = FirebaseAuth.instance.currentUser;
     var chatData = chat.data() as Map<String, dynamic>;
     var isDoc = user?.uid == chatData['doctor'];
-    var chatTitle = isDoc ? chatData['clientName'] : chatData['doctorName'];
+    var chatTitle = (isDoc ? chatData['clientName'] : chatData['doctorName']) ??
+        'Unknown User';
     var otherUserId = isDoc ? chatData['client'] : chatData['doctor'];
 
     // Get unread count for current user
@@ -133,7 +134,7 @@ class _MessagePageState extends State<MessagePage> {
         if (snapshot.hasData && snapshot.data!.exists) {
           try {
             var data = snapshot.data!.data() as Map<String, dynamic>;
-            photoURL = data['photoURL'];
+            photoURL = data['photo'];
           } catch (e) {
             print('Error loading photo: $e');
           }
