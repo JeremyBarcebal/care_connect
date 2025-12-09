@@ -52,9 +52,11 @@ class _ClientPageState extends State<ClientPage> {
             MaterialPageRoute(builder: (context) => NotificationPage()),
           );
         },
+        
         child: const Icon(Icons.notifications, color: Colors.white),
         tooltip: 'Notifications',
         backgroundColor: const Color(0xFF4DBFB8),
+        
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.only(

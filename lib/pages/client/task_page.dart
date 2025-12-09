@@ -227,7 +227,7 @@ class _TaskPageState extends State<TaskPage> {
                               ),
                             ),  
                        ),
-                        SizedBox(height: 16),
+                        SizedBox(height: 12),
                         // Task List
                         ListView.separated(
                           shrinkWrap: true,
