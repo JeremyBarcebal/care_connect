@@ -124,7 +124,18 @@ class _MessagePageState extends State<MessagePage> {
 
     // Get unread count for current user
     var unreadCountKey = isDoc ? 'unreadCountDoctor' : 'unreadCountClient';
-    var unreadCount = chatData[unreadCountKey] ?? 0;
+    var unreadCountRaw = chatData[unreadCountKey] ?? 0;
+
+    // Handle both int and Timestamp types for backward compatibility
+    // If it's a Timestamp (from old web code), treat as unread
+    int unreadCount = 0;
+    if (unreadCountRaw is int) {
+      unreadCount = unreadCountRaw;
+    } else if (unreadCountRaw is Timestamp) {
+      // If it's a Timestamp, treat as having unread (should not happen with new code)
+      unreadCount = 1;
+    }
+
     var hasUnread = unreadCount > 0;
 
     return FutureBuilder<DocumentSnapshot>(
@@ -170,22 +181,38 @@ class _MessagePageState extends State<MessagePage> {
 
               // Format time
               if (lastMsg['timestamp'] != null) {
-                var messageTime = (lastMsg['timestamp'] as Timestamp).toDate();
-                var now = DateTime.now();
-                var yesterday = DateTime(now.year, now.month, now.day - 1);
-                var msgDate = DateTime(
-                    messageTime.year, messageTime.month, messageTime.day);
+                try {
+                  var timestamp = lastMsg['timestamp'];
+                  DateTime messageTime;
 
-                if (msgDate == DateTime(now.year, now.month, now.day)) {
-                  // Today - show time
-                  lastTime =
-                      '${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
-                } else if (msgDate == yesterday) {
-                  // Yesterday
-                  lastTime = 'Yesterday';
-                } else {
-                  // Older - show date
-                  lastTime = '${messageTime.month}/${messageTime.day}';
+                  if (timestamp is Timestamp) {
+                    messageTime = timestamp.toDate();
+                  } else if (timestamp is DateTime) {
+                    messageTime = timestamp;
+                  } else {
+                    // Try to parse as string
+                    messageTime = DateTime.parse(timestamp.toString());
+                  }
+
+                  var now = DateTime.now();
+                  var yesterday = DateTime(now.year, now.month, now.day - 1);
+                  var msgDate = DateTime(
+                      messageTime.year, messageTime.month, messageTime.day);
+
+                  if (msgDate == DateTime(now.year, now.month, now.day)) {
+                    // Today - show time
+                    lastTime =
+                        '${messageTime.hour.toString().padLeft(2, '0')}:${messageTime.minute.toString().padLeft(2, '0')}';
+                  } else if (msgDate == yesterday) {
+                    // Yesterday
+                    lastTime = 'Yesterday';
+                  } else {
+                    // Older - show date
+                    lastTime = '${messageTime.month}/${messageTime.day}';
+                  }
+                } catch (e) {
+                  print('Error formatting timestamp: $e');
+                  lastTime = '';
                 }
               }
             }
