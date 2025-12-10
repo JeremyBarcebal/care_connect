@@ -120,8 +120,8 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 25),
       decoration: BoxDecoration(
-        color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(12),
+        color:  Colors.grey[300],
+        borderRadius: BorderRadius.circular(15),
       ),
       child: TextField(
         controller: _controllers[key],
@@ -131,6 +131,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
+            fontSize: 14,
             color: Colors.black,
             fontWeight: FontWeight.w400,
           ),
@@ -164,7 +165,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
                   'Sign Up',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 26,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -179,7 +180,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
                   topRight: Radius.circular(80),
                 ),
                 child: Container(
-                  height: 650,
+                  height: 640,
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     color: Colors.white,
@@ -187,7 +188,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
                   child: SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 90),
+                          horizontal: 40, vertical: 50),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -239,13 +240,18 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.grey[300],
-        borderRadius: BorderRadius.circular(12),
+        color:  Color(0xFF9ACBD0).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(15),
       ),
       child: DropdownButtonFormField<String>(
         value: _selectedGender,
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: const TextStyle(
+            fontSize: 14,
+            color: Colors.black,
+            fontWeight: FontWeight.w400,
+          ),
           border: InputBorder.none,
         ),
         items: items.map((String value) {
@@ -279,16 +285,16 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       child: ElevatedButton(
         onPressed: _signup,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF4DBFB8),
+          backgroundColor: const Color(0xFF006A71),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(15),
           ),
         ),
         child: const Text(
           'SIGN UP',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 16,
+            fontSize: 14,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -303,7 +309,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
         children: [
           const Text(
             'Have an account? ',
-            style: TextStyle(color: Colors.black87, fontSize: 14),
+            style: TextStyle(color: Colors.black87, fontSize: 12),
           ),
           GestureDetector(
             onTap: () => Navigator.pushReplacementNamed(context, '/login'),
@@ -311,7 +317,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
               'Login',
               style: TextStyle(
                 color: Color(0xFF4DBFB8),
-                fontSize: 14,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),

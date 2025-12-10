@@ -54,7 +54,7 @@ class _MessagePageState extends State<MessagePage> {
               ),
             ],
           ),
-          backgroundColor: const Color(0xFF4DBFB8),
+          backgroundColor: const Color(0xFF48A6A7),
           shape: RoundedAppBarShape(), // Custom AppBar shape
         ),
       ),
@@ -118,7 +118,8 @@ class _MessagePageState extends State<MessagePage> {
     User? user = FirebaseAuth.instance.currentUser;
     var chatData = chat.data() as Map<String, dynamic>;
     var isDoc = user?.uid == chatData['doctor'];
-    var chatTitle = isDoc ? chatData['clientName'] : chatData['doctorName'];
+    var chatTitle = (isDoc ? chatData['clientName'] : chatData['doctorName']) ??
+        'Unknown User';
     var otherUserId = isDoc ? chatData['client'] : chatData['doctor'];
 
     // Get unread count for current user
@@ -133,7 +134,7 @@ class _MessagePageState extends State<MessagePage> {
         if (snapshot.hasData && snapshot.data!.exists) {
           try {
             var data = snapshot.data!.data() as Map<String, dynamic>;
-            photoURL = data['photoURL'];
+            photoURL = data['photo'];
           } catch (e) {
             print('Error loading photo: $e');
           }
@@ -194,7 +195,7 @@ class _MessagePageState extends State<MessagePage> {
               child: Container(
                 decoration: BoxDecoration(
                   color:
-                      hasUnread ? const Color(0xFF4DBFB8) : Colors.transparent,
+                      hasUnread ? Color(0xFF006A71) : Colors.transparent,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListTile(
@@ -204,7 +205,7 @@ class _MessagePageState extends State<MessagePage> {
                     style: TextStyle(
                       fontWeight: hasUnread ? FontWeight.bold : FontWeight.w500,
                       fontSize: 14,
-                      color: hasUnread ? Colors.black87 : Colors.grey.shade700,
+                      color: hasUnread ? const Color.fromARGB(221, 255, 255, 255) : const Color.fromARGB(255, 255, 250, 250),
                     ),
                   ),
                   subtitle: Text(
@@ -214,7 +215,7 @@ class _MessagePageState extends State<MessagePage> {
                     style: TextStyle(
                       fontSize: 12,
                       color: hasUnread
-                          ? Colors.grey.shade700
+                          ? const Color.fromARGB(255, 255, 255, 255)
                           : Colors.grey.shade500,
                       fontWeight:
                           hasUnread ? FontWeight.w500 : FontWeight.normal,

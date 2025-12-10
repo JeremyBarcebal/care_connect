@@ -20,11 +20,15 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   bool _isSending = false;
+  bool _isAcceptingPrescription = false;
   final ScrollController _scrollController = ScrollController();
   late TaskService _taskService;
 
   // Cache for profile photos to avoid repeated fetches
   final Map<String, String?> _photoCache = {};
+
+  // Cache for prescriptions to avoid repeated fetches
+  final Map<String, Map<String, dynamic>> _prescriptionCache = {};
 
   @override
   void initState() {
@@ -54,7 +58,7 @@ class _ChatPageState extends State<ChatPage> {
           .get(const GetOptions(source: Source.cache));
       if (docSnapshot.exists) {
         var docData = docSnapshot.data() as Map<String, dynamic>;
-        _photoCache[doctorId] = docData['photoURL'];
+        _photoCache[doctorId] = docData['photo'];
       }
 
       // Load client photo
@@ -64,10 +68,52 @@ class _ChatPageState extends State<ChatPage> {
           .get(const GetOptions(source: Source.cache));
       if (clientSnapshot.exists) {
         var clientData = clientSnapshot.data() as Map<String, dynamic>;
-        _photoCache[clientId] = clientData['photoURL'];
+        _photoCache[clientId] = clientData['photo'];
       }
     } catch (e) {
       print('Error pre-loading photos: $e');
+    }
+  }
+
+  /// Fetch prescription with intelligent caching
+  /// First checks cache, then fetches from Firestore and caches the result
+  Future<Map<String, dynamic>> _fetchPrescriptionWithCache(
+    String patientId,
+    String prescriptionId,
+  ) async {
+    // Create a cache key
+    final cacheKey = '$patientId-$prescriptionId';
+
+    // Check if already in cache
+    if (_prescriptionCache.containsKey(cacheKey)) {
+      print('Loading prescription from cache: $cacheKey');
+      return _prescriptionCache[cacheKey]!;
+    }
+
+    // Not in cache, fetch from Firestore
+    print('Fetching prescription from Firestore: $cacheKey');
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(patientId)
+          .collection('prescriptions')
+          .doc(prescriptionId)
+          .get();
+
+      if (!doc.exists) {
+        throw Exception('Prescription document not found');
+      }
+
+      final presData = doc.data() as Map<String, dynamic>;
+
+      // Store in cache for future use
+      _prescriptionCache[cacheKey] = presData;
+      print('Prescription cached: $cacheKey');
+
+      return presData;
+    } catch (e) {
+      print('Error fetching prescription: $e');
+      rethrow;
     }
   }
 
@@ -91,11 +137,11 @@ class _ChatPageState extends State<ChatPage> {
           .doc(otherUserId)
           .get(),
       builder: (context, profileSnapshot) {
-        String? photoURL;
+        String? photo;
         if (profileSnapshot.hasData && profileSnapshot.data!.exists) {
           try {
             var data = profileSnapshot.data!.data() as Map<String, dynamic>;
-            photoURL = data['photoURL'];
+            photo = data['photo'];
           } catch (e) {
             print('Error loading profile photo: $e');
           }
@@ -111,7 +157,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             title: Row(
               children: [
-                _buildProfileAvatar(photoURL, 40),
+                _buildProfileAvatar(photo, 40),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -164,7 +210,7 @@ class _ChatPageState extends State<ChatPage> {
                       .doc(widget.chatDocumentId)
                       .collection('convo')
                       .orderBy('timestamp',
-                          descending: false) // Sort by timestamp
+                          descending: true) // Sort by timestamp (newest first)
                       .snapshots(),
                   builder: (context, snapshot) {
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -173,27 +219,22 @@ class _ChatPageState extends State<ChatPage> {
 
                     var messages = snapshot.data!.docs;
 
-                    // Scroll to bottom - reset flag on new message count to handle new messages
+                    // Scroll to bottom when new message arrives
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scrollController.hasClients) {
-                        Future.delayed(const Duration(milliseconds: 100), () {
-                          if (_scrollController.hasClients) {
-                            _scrollController.animateTo(
-                              _scrollController.position.maxScrollExtent,
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.easeOut,
-                            );
-                          }
-                        });
+                      if (_scrollController.hasClients &&
+                          _scrollController.position.maxScrollExtent > 0) {
+                        _scrollController
+                            .jumpTo(0); // Jump to top (reversed list)
                       }
                     });
 
                     return ListView.builder(
                       controller: _scrollController,
+                      reverse: true, // Show newest messages at bottom
                       padding: const EdgeInsets.all(16),
                       itemCount: messages.length,
-                      addAutomaticKeepAlives: false,
-                      addRepaintBoundaries: false,
+                      addAutomaticKeepAlives: true,
+                      addRepaintBoundaries: true,
                       itemBuilder: (context, index) {
                         var messageData = messages[index];
                         User? user = FirebaseAuth.instance.currentUser;
@@ -204,7 +245,7 @@ class _ChatPageState extends State<ChatPage> {
 
                         // Determine which user's photo to load based on message sender
                         var senderUserId = messageData['sender'] as String?;
-                        var cachedPhotoURL = _photoCache[senderUserId ?? ''];
+                        var cachedPhoto = _photoCache[senderUserId ?? ''];
 
                         // Check if this is a prescription message or a prescription reference
                         if (messageData['type'] == 'prescription') {
@@ -217,7 +258,7 @@ class _ChatPageState extends State<ChatPage> {
                             isPatient &&
                                 !isCurrUser, // Show accept button only for patient receiving
                             messageData.id, // Pass message document ID
-                            cachedPhotoURL,
+                            cachedPhoto,
                           );
                         } else if (messageData['type'] == 'prescription_ref') {
                           // Lazy fetch the full prescription document referenced by this chat message
@@ -228,26 +269,41 @@ class _ChatPageState extends State<ChatPage> {
                             return const Text('Invalid prescription reference');
                           }
 
-                          return FutureBuilder<DocumentSnapshot>(
-                            future: FirebaseFirestore.instance
-                                .collection('accounts')
-                                .doc(patientId)
-                                .collection('prescriptions')
-                                .doc(prescriptionId)
-                                .get(const GetOptions(source: Source.cache)),
+                          return FutureBuilder<Map<String, dynamic>>(
+                            future: _fetchPrescriptionWithCache(
+                                patientId, prescriptionId),
                             builder: (context, snap) {
                               if (snap.connectionState ==
                                   ConnectionState.waiting) {
-                                return const Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: CircularProgressIndicator(),
+                                return Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildProfileAvatar(cachedPhoto, 32),
+                                      const SizedBox(width: 8),
+                                      const Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: SizedBox(
+                                          width: 20,
+                                          height: 20,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 );
                               }
-                              if (!snap.hasData || !snap.data!.exists) {
+                              if (snap.hasError) {
+                                return Text(
+                                    'Error loading prescription: ${snap.error}');
+                              }
+                              if (!snap.hasData) {
                                 return const Text('Prescription not found');
                               }
-                              final presData =
-                                  snap.data!.data() as Map<String, dynamic>;
+                              final presData = snap.data!;
 
                               // Overlay chat-level status if present
                               presData['status'] = messageData['status'] ??
@@ -264,7 +320,7 @@ class _ChatPageState extends State<ChatPage> {
                                 isCurrUser,
                                 isPatient && !isCurrUser,
                                 messageData.id,
-                                cachedPhotoURL,
+                                cachedPhoto,
                               );
                             },
                           );
@@ -276,7 +332,7 @@ class _ChatPageState extends State<ChatPage> {
                                 : widget.chatData['clientName'],
                             messageData['message'],
                             isCurrUser,
-                            cachedPhotoURL,
+                            cachedPhoto,
                           );
                         }
                       },
@@ -295,7 +351,7 @@ class _ChatPageState extends State<ChatPage> {
 
   // Message Row
   Widget _buildMessageRow(
-      String sender, String message, bool isCurrUser, String? photoURL) {
+      String sender, String message, bool isCurrUser, String? photo) {
     return Align(
       alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Row(
@@ -304,7 +360,7 @@ class _ChatPageState extends State<ChatPage> {
             isCurrUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isCurrUser) _buildProfileAvatar(photoURL, 32),
+          if (!isCurrUser) _buildProfileAvatar(photo, 32),
           if (!isCurrUser) const SizedBox(width: 8),
           ConstrainedBox(
             constraints: BoxConstraints(
@@ -315,8 +371,8 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCurrUser
-                    ? const Color.fromARGB(255, 185, 246, 242)
-                    : Colors.white,
+                    ? const Color(0xFF9ACBD0).withOpacity(0.3)
+                    : const Color.fromARGB(255, 226, 250, 250).withOpacity(0.8),
                 borderRadius: BorderRadius.circular(16),
                 border:
                     isCurrUser ? null : Border.all(color: Colors.grey.shade300),
@@ -335,7 +391,7 @@ class _ChatPageState extends State<ChatPage> {
                     sender,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCurrUser ? const Color(0xFF4DBFB8) : Colors.grey,
+                      color: isCurrUser ? const Color(0xFF006A71) : Colors.grey,
                       fontSize: 11,
                     ),
                   ),
@@ -349,23 +405,23 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           if (isCurrUser) const SizedBox(width: 8),
-          if (isCurrUser) _buildProfileAvatar(photoURL, 32),
+          if (isCurrUser) _buildProfileAvatar(photo, 32),
         ],
       ),
     );
   }
 
   // Build profile avatar with image or icon
-  Widget _buildProfileAvatar(String? photoURL, double size) {
+  Widget _buildProfileAvatar(String? photo, double size) {
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF4DBFB8),
+        color: Color(0xFF006A71).withOpacity(0.3),
       ),
-      child: photoURL != null && photoURL.isNotEmpty
-          ? _buildProfileImage(photoURL)
+      child: photo != null && photo.isNotEmpty
+          ? _buildProfileImage(photo)
           : Center(
               child: Icon(
                 Icons.person,
@@ -377,10 +433,10 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   // Build profile image from data URL or network
-  Widget _buildProfileImage(String photoURL) {
-    if (photoURL.startsWith('data:image')) {
+  Widget _buildProfileImage(String photo) {
+    if (photo.startsWith('data:image')) {
       try {
-        final parts = photoURL.split(',');
+        final parts = photo.split(',');
         if (parts.length > 1) {
           final base64String = parts[1];
           final decodedBytes = base64Decode(base64String);
@@ -407,7 +463,7 @@ class _ChatPageState extends State<ChatPage> {
     // Try to load as network image
     return ClipOval(
       child: Image.network(
-        photoURL,
+        photo,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return const Center(
@@ -593,7 +649,9 @@ class _ChatPageState extends State<ChatPage> {
     String messageDocId,
   ) async {
     try {
-      setState(() {});
+      setState(() {
+        _isAcceptingPrescription = true;
+      });
 
       // If this message is a reference, load the full prescription doc
       if (prescription['prescriptionId'] != null &&
@@ -626,6 +684,25 @@ class _ChatPageState extends State<ChatPage> {
       final medicines = prescription['medicines'] as List<dynamic>? ?? [];
       print('Number of medicines: ${medicines.length}');
 
+      // Fetch doctor information if we have doctorId
+      String? doctorName;
+      final String? doctorId = prescription['doctorId'] as String?;
+      if (doctorId != null && doctorId.isNotEmpty) {
+        try {
+          final doctorDoc = await FirebaseFirestore.instance
+              .collection('accounts')
+              .doc(doctorId)
+              .get();
+          if (doctorDoc.exists) {
+            doctorName =
+                doctorDoc.data()?['name'] ?? doctorDoc.data()?['displayName'];
+            print('Doctor Name: $doctorName');
+          }
+        } catch (e) {
+          print('Failed to fetch doctor name: $e');
+        }
+      }
+
       if (medicines.isNotEmpty) {
         // Handle multiple medicines
         for (var med in medicines) {
@@ -648,6 +725,7 @@ class _ChatPageState extends State<ChatPage> {
             'frequency': (medicineMap['frequency'] ?? '').toString(),
             'duration': (medicineMap['duration'] ?? '').toString(),
             'remarks': (medicineMap['remarks'] ?? '').toString(),
+            if (doctorName != null) 'doctorName': doctorName,
           };
 
           print('  Medicine Metadata: $medicineMetadata');
@@ -721,6 +799,31 @@ class _ChatPageState extends State<ChatPage> {
           .collection('convo')
           .doc(messageDocId)
           .update({'status': 'accepted'});
+
+      // Create notification for doctor that patient accepted
+      final patientName =
+          FirebaseAuth.instance.currentUser?.displayName ?? 'Patient';
+      final medicineNames = prescription['medicineName'] ?? 'Medicine';
+
+      // Only create notification if we have a valid doctor ID
+      if (doctorId != null && doctorId.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('accounts')
+            .doc(doctorId)
+            .collection('notifications')
+            .add({
+          'type': 'prescription_response',
+          'prescriptionId': prescription['prescriptionId'],
+          'message': '$patientName accepted your prescription',
+          'details': 'Medicine: $medicineNames',
+          'sender': FirebaseAuth.instance.currentUser?.uid,
+          'timestamp': FieldValue.serverTimestamp(),
+          'isNew': true,
+        });
+      } else {
+        print(
+            'Warning: Could not find doctor ID for prescription notification');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -824,6 +927,25 @@ class _ChatPageState extends State<ChatPage> {
           .collection('convo')
           .doc(messageDocId)
           .update({'status': 'declined'});
+
+      // Create notification for doctor that patient declined
+      final patientName =
+          FirebaseAuth.instance.currentUser?.displayName ?? 'Patient';
+      final medicineNames = msg?['medicineName'] ?? 'Medicine';
+
+      await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(msg?['sender'] ?? '')
+          .collection('notifications')
+          .add({
+        'type': 'prescription_response',
+        'prescriptionId': msg?['prescriptionId'],
+        'message': '$patientName declined your prescription',
+        'details': 'Medicine: $medicineNames',
+        'sender': FirebaseAuth.instance.currentUser?.uid,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isNew': true,
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1072,34 +1194,65 @@ class _ChatPageState extends State<ChatPage> {
                   if (showAcceptButton && status == 'pending')
                     Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _declinePrescription(messageDocId);
-                            },
-                            icon: const Icon(Icons.close, size: 16),
-                            label: const Text('Decline'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton.icon(
+                              onPressed: _isAcceptingPrescription
+                                  ? null
+                                  : () {
+                                      _declinePrescription(messageDocId);
+                                    },
+                              icon: const Icon(Icons.close, size: 16),
+                              label: const Text('Decline'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 0,
+                                ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              _acceptPrescription(messageData, messageDocId);
-                            },
-                            icon: const Icon(Icons.check, size: 16),
-                            label: const Text('Accept'),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor:
-                                    const Color.fromARGB(255, 186, 250, 246)),
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton.icon(
+                              onPressed: _isAcceptingPrescription
+                                  ? null
+                                  : () {
+                                      _acceptPrescription(
+                                          messageData, messageDocId);
+                                    },
+                              icon: _isAcceptingPrescription
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(Icons.check, size: 16),
+                              label: _isAcceptingPrescription
+                                  ? const Text('Accepting...')
+                                  : const Text('Accept'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isAcceptingPrescription
+                                    ? Colors.grey
+                                    : const Color.fromARGB(255, 186, 250, 246),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 0,
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
