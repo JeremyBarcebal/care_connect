@@ -50,14 +50,26 @@ class _NotificationPageState extends State<NotificationPage> {
             itemCount: notifications.length,
             itemBuilder: (context, index) {
               var notification = notifications[index];
-              String content = notification[
-                  'message']; // Assuming the notification document has a 'content' field
-              String timestamp = notification['timestamp']
-                  .toDate()
-                  .toString(); // Assuming there is a 'timestamp' field
+              String content = notification['message'] ?? 'Notification';
 
-              // Format the timestamp if needed
-              String formattedTime = _formatTimestamp(timestamp);
+              // Safely extract and format the timestamp
+              String formattedTime = 'Unknown time';
+              try {
+                var timestampValue = notification['timestamp'];
+                if (timestampValue != null) {
+                  if (timestampValue is Timestamp) {
+                    // It's a Firestore Timestamp
+                    DateTime dateTime = timestampValue.toDate();
+                    formattedTime = _formatTimestamp(dateTime.toString());
+                  } else if (timestampValue is DateTime) {
+                    // It's already a DateTime
+                    formattedTime = _formatTimestamp(timestampValue.toString());
+                  }
+                }
+              } catch (e) {
+                print('Error parsing timestamp: $e');
+                formattedTime = 'Unable to parse time';
+              }
 
               return Container(
                 margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),

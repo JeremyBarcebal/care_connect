@@ -21,8 +21,31 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _logout(BuildContext context) async {
-    await _auth.signOut(); // Firebase sign out
-    Navigator.pushReplacementNamed(context, '/login'); // Redirect to login page
+    // Show confirmation dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context); // Close dialog
+                await _auth.signOut(); // Firebase sign out
+                Navigator.pushReplacementNamed(
+                    context, '/login'); // Redirect to login page
+              },
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _saveDisplayName() async {
@@ -120,8 +143,12 @@ class _SettingsPageState extends State<SettingsPage> {
             Spacer(),
             Center(
               child: ElevatedButton(
-                onPressed: () => _logout(context), // Call the logout method
-                child: Text('Logout'),
+                onPressed: () => _logout(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Logout'),
               ),
             ),
           ],
