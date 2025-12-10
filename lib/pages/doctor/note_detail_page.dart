@@ -127,7 +127,9 @@ class _NoteDetailState extends State<NoteDetail> {
           'noteId': widget.noteData.id, // Add the note ID here
           'message':
               widget.userData?['name'] + ' declined your consultation request',
+          'type': 'consultation',
           'timestamp': Timestamp.now(),
+          'isNew': true,
         });
 
         Navigator.pop(context);
@@ -185,7 +187,9 @@ class _NoteDetailState extends State<NoteDetail> {
           'noteId': widget.noteData.id, // Add the note ID here
           'message':
               widget.userData?['name'] + ' accepted your consultation request',
+          'type': 'consultation',
           'timestamp': Timestamp.now(),
+          'isNew': true,
         });
 
         Navigator.pop(context);

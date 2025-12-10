@@ -1,6 +1,6 @@
 import 'package:care_connect/main.dart';
 import 'package:care_connect/pages/client/add_note_page.dart';
-import 'package:care_connect/pages/doctor/note_detail_page.dart';
+import 'package:care_connect/pages/client/patient_note_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -80,12 +80,13 @@ class _NoteListPageState extends State<NoteListPage> {
               const SizedBox(height: 20),
               Text(
                 "Consultation Requests Notes",
-                style: TextStyle(fontSize: 18, color: Color.fromARGB(255, 255, 255, 255)),
+                style: TextStyle(
+                    fontSize: 18, color: Color.fromARGB(255, 255, 255, 255)),
               ),
             ],
           ),
           centerTitle: true,
-          backgroundColor:  Color(0xFF48A6A7),
+          backgroundColor: Color(0xFF48A6A7),
           shape: RoundedAppBarShape(), // Custom AppBar shape
         ),
       ),
@@ -144,14 +145,26 @@ class NoteItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Extracting values from the note object
-    String title = note['patientFeels'];
-    String name = note['clientName'];
+    String title = note['patientFeels'] ?? '';
+    String name = note['clientName'] ?? '';
+
+    // Safely get doctorName, handling missing field
+    String doctorName = 'Unassigned Doctor';
+    try {
+      final data = note.data() as Map<String, dynamic>?;
+      if (data != null && data.containsKey('doctorName')) {
+        doctorName = data['doctorName'] ?? 'Unassigned Doctor';
+      }
+    } catch (e) {
+      // If there's any error accessing the field, use default
+      doctorName = 'Unassigned Doctor';
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 5.0),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color.fromRGBO(0, 106, 113, 1),
+          color: const Color.fromRGBO(0, 106, 113, 1).withOpacity(0.8),
           borderRadius: BorderRadius.circular(12),
         ),
         child: ListTile(
@@ -160,7 +173,7 @@ class NoteItem extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (context) => NoteDetail(
+                  builder: (context) => PatientNoteDetailPage(
                         userData,
                         noteData: note,
                       )),
@@ -177,9 +190,23 @@ class NoteItem extends StatelessWidget {
                       : Icons.disabled_by_default_rounded)
                   : Icons.check_box_outline_blank,
               color: Colors.white),
-          title: Text(
-            title,
-            style: const TextStyle(color: Colors.white),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Assigned to: $doctorName',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
           ),
           trailing: Text(
             formattedTime,

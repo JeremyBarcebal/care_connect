@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:care_connect/pages/doctor/task_service.dart';
+import 'package:care_connect/pages/client/chat_page.dart';
 
 // Type options
 const List<String> medicineTypes = [
@@ -334,6 +335,27 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
       // Update prescription doc with chat message id for cross-reference
       await newPrescriptionRef.update({'chatMessageId': chatMsgRef.id});
 
+      // Create notification for patient
+      final doctorName =
+          FirebaseAuth.instance.currentUser?.displayName ?? 'Doctor';
+      final doctorId = FirebaseAuth.instance.currentUser?.uid;
+      final medicineNames = _medicines.map((m) => m.medicineName).join(', ');
+
+      await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(_patientId)
+          .collection('notifications')
+          .add({
+        'type': 'prescription',
+        'prescriptionId': prescriptionId,
+        'message': '$doctorName sent you a prescription',
+        'details': 'Medicine: ${_medicines.isNotEmpty ? medicineNames : 'N/A'}',
+        'sender': doctorId,
+        'doctorId': doctorId,
+        'timestamp': FieldValue.serverTimestamp(),
+        'isNew': true,
+      });
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -422,12 +444,61 @@ class _AddPrescriptionPageState extends State<AddPrescriptionPage> {
     );
   }
 
+  /// Navigate to the chat conversation with the patient
+  void _navigateToChat() async {
+    if (widget.chatDocumentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat session not available')),
+      );
+      return;
+    }
+
+    try {
+      // Fetch chat data
+      final chatDoc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatDocumentId)
+          .get();
+
+      if (chatDoc.exists) {
+        final chatData = chatDoc.data() as Map<String, dynamic>;
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatPage(
+                chatDocumentId: widget.chatDocumentId!,
+                chatData: chatData,
+              ),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chat not found')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Prescription'),
         backgroundColor: Colors.green,
+        actions: [
+          if (widget.chatDocumentId != null)
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline),
+              tooltip: 'View Chat',
+              onPressed: _navigateToChat,
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
