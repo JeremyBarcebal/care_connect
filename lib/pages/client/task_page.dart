@@ -323,8 +323,8 @@ class _TaskItemState extends State<TaskItem> {
           decoration: BoxDecoration(
             color: widget.status == 'completed'
                 ? Color(0xFF9ACBD0).withOpacity(0.5)
-                :Color(0xFF9ACBD0).withOpacity(0.15) ,
-            borderRadius: BorderRadius.circular(12),
+                : Color.fromARGB(255, 230, 248, 250).withOpacity(0.5) ,
+            borderRadius: BorderRadius.circular(15),
             border: widget.status == 'completed'
                 ? Border.all(color: Color(0xFF006A71), width: 1)
                 : Border.all(color: Color(0xFF9ACBD0), width: 1),

@@ -371,11 +371,11 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCurrUser
-                    ? const Color(0xFF9ACBD0).withOpacity(0.3)
-                    : const Color.fromARGB(255, 226, 250, 250).withOpacity(0.8),
+                    ? const Color.fromARGB(255, 245, 254, 255).withOpacity(0.5)
+                    : const Color.fromARGB(255, 201, 239, 239).withOpacity(0.4),
                 borderRadius: BorderRadius.circular(16),
                 border:
-                    isCurrUser ? null : Border.all(color: Colors.grey.shade300),
+                    isCurrUser ? null : Border.all(color: Colors.grey.shade200),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -391,7 +391,7 @@ class _ChatPageState extends State<ChatPage> {
                     sender,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCurrUser ? const Color(0xFF006A71) : Colors.grey,
+                      color: isCurrUser ? const Color(0xFF006A71) :const Color(0xFF006A71) ,
                       fontSize: 11,
                     ),
                   ),
@@ -482,10 +482,10 @@ class _ChatPageState extends State<ChatPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 208, 233, 231),
+        color: Color(0xFF9ACBD0).withOpacity(0.15),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+          topLeft: Radius.circular(10),
+          topRight: Radius.circular(10),
         ),
       ),
       child: Row(
@@ -511,7 +511,7 @@ class _ChatPageState extends State<ChatPage> {
           _isSending
               ? const CircularProgressIndicator()
               : IconButton(
-                  icon: const Icon(Icons.send, color: const Color(0xFF4DBFB8)),
+                  icon: const Icon(Icons.send, color: const Color(0xFF006A71),),
                   onPressed: _sendMessage,
                 ),
         ],
@@ -636,7 +636,7 @@ class _ChatPageState extends State<ChatPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send prescription: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: const Color.fromARGB(255, 251, 78, 66),
           ),
         );
       }
@@ -951,7 +951,7 @@ class _ChatPageState extends State<ChatPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Prescription declined.'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Color.fromARGB(255, 255, 101, 62),
             duration: Duration(seconds: 2),
           ),
         );
@@ -981,8 +981,8 @@ class _ChatPageState extends State<ChatPage> {
     final statusColor = status == 'accepted'
         ? const Color(0xFF4DBFB8)
         : status == 'declined'
-            ? Colors.red
-            : Colors.orange;
+            ? const Color.fromARGB(255, 196, 58, 48)
+            : const Color.fromARGB(255, 249, 230, 119);
 
     return Align(
       alignment: isCurrUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -1003,10 +1003,10 @@ class _ChatPageState extends State<ChatPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isCurrUser
-                    ? Colors.blue.shade50
-                    : const Color.fromARGB(255, 209, 242, 240),
+                    ? const Color.fromARGB(255, 207, 218, 226)
+                    :  Color.fromARGB(255, 255, 255, 255).withOpacity(0.5),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: statusColor, width: 1.5),
+                border: Border.all(color: statusColor, width: 1),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -1028,14 +1028,14 @@ class _ChatPageState extends State<ChatPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.local_pharmacy,
-                              size: 18, color: const Color(0xFF4DBFB8)),
+                              size: 18, color: const Color(0xFF006A71)),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               sender,
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFF4DBFB8),
+                                color: const Color(0xFF006A71),
                                 fontSize: 12,
                               ),
                               overflow: TextOverflow.ellipsis,
@@ -1088,8 +1088,7 @@ class _ChatPageState extends State<ChatPage> {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
+                              decoration: BoxDecoration(                   
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(color: Colors.grey.shade300),
                               ),
@@ -1165,8 +1164,8 @@ class _ChatPageState extends State<ChatPage> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
                       borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1200,7 +1199,7 @@ class _ChatPageState extends State<ChatPage> {
                         alignment: WrapAlignment.end,
                         children: [
                           SizedBox(
-                            height: 36,
+                            height: 30,
                             child: ElevatedButton.icon(
                               onPressed: _isAcceptingPrescription
                                   ? null
@@ -1210,7 +1209,7 @@ class _ChatPageState extends State<ChatPage> {
                               icon: const Icon(Icons.close, size: 16),
                               label: const Text('Decline'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
+                                backgroundColor: const Color.fromARGB(255, 196, 58, 48),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -1220,7 +1219,7 @@ class _ChatPageState extends State<ChatPage> {
                             ),
                           ),
                           SizedBox(
-                            height: 36,
+                            height: 30,
                             child: ElevatedButton.icon(
                               onPressed: _isAcceptingPrescription
                                   ? null
@@ -1231,7 +1230,7 @@ class _ChatPageState extends State<ChatPage> {
                               icon: _isAcceptingPrescription
                                   ? const SizedBox(
                                       width: 16,
-                                      height: 16,
+                                      height: 40,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
                                         valueColor:
@@ -1246,7 +1245,8 @@ class _ChatPageState extends State<ChatPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _isAcceptingPrescription
                                     ? Colors.grey
-                                    : const Color.fromARGB(255, 186, 250, 246),
+                                    : const Color.fromARGB(255, 255, 255, 255),
+                                   foregroundColor: Color(0xFF006A71),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 0,
