@@ -263,7 +263,6 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color:  Color(0xFF9ACBD0).withOpacity(0.2),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5),
           ),

@@ -128,7 +128,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Expanded(child: Text('Error picking image: $e')),
               ],
             ),
-            backgroundColor: Colors.red[700],
+            backgroundColor: Colors.red[500],
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             shape:

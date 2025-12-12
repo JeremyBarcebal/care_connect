@@ -164,8 +164,11 @@ class NoteItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 5.0),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color.fromRGBO(0, 106, 113, 1).withOpacity(0.8),
+          color: Color(0xFF9ACBD0).withOpacity(0.25),
           borderRadius: BorderRadius.circular(12),
+           border: Border.all(
+        color:Color.fromARGB(255, 10, 141, 156).withOpacity(0.8),width:0.8, 
+        ),
         ),
         child: ListTile(
           onTap: () {
@@ -189,20 +192,20 @@ class NoteItem extends StatelessWidget {
                       ? Icons.check_box_rounded
                       : Icons.disabled_by_default_rounded)
                   : Icons.check_box_outline_blank,
-              color: Colors.white),
+              color:Color(0xFF006A71)),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
               ),
               const SizedBox(height: 4),
               Text(
                 'Assigned to: $doctorName',
                 style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
+                  color: Color.fromARGB(179, 21, 21, 21),
+                  fontSize: 10,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -210,7 +213,7 @@ class NoteItem extends StatelessWidget {
           ),
           trailing: Text(
             formattedTime,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: Color(0xFF48A6A7), fontSize: 10),
           ),
         ),
       ),

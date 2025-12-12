@@ -124,9 +124,8 @@ class _AddNotePageState extends State<AddNotePage> {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: Color(0xFF9ACBD0).withOpacity(0.3),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5!),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color.fromARGB(255, 24, 28, 29).withOpacity(0.3), width: 1!),
       ),
       child: TextField(
         controller: _controllers[key],
@@ -136,9 +135,9 @@ class _AddNotePageState extends State<AddNotePage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-              color: Color.fromARGB(255, 12, 55, 52),
+              color: Color.fromARGB(255, 45, 48, 48),
               fontWeight: FontWeight.w400,
-              fontSize: 16),
+              fontSize: 12),
           border: InputBorder.none,
         ),
       ),
@@ -212,7 +211,7 @@ class _AddNotePageState extends State<AddNotePage> {
               const SizedBox(height: 5.0),
               const Text("Assigned Doctor:",
                   style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Color(0xFF006A71),
                       fontWeight: FontWeight.w500)),
               Container(
