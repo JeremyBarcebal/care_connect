@@ -1,7 +1,3 @@
-//Wala man nako nahuman sa Push Notif huhuh.. kay need nako ug understanding sa Firebase..
-//Pero, naa koy gi set up na file sa  lib/services/notification_service.dart mao ning code nga mag pop up sa notif sa device screen kung hatagan og command daww
-
-
 
 
 import 'package:care_connect/pages/client/note_list_page.dart';
