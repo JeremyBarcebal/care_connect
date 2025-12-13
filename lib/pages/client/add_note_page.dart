@@ -1,7 +1,15 @@
+//Wala man nako nahuman sa Push Notif huhuh.. kay need nako ug understanding sa Firebase..
+//Pero, naa koy gi set up na file sa  lib/services/notification_service.dart mao ning code nga mag pop up sa notif sa device screen kung hatagan og command daww
+
+
+
+
 import 'package:care_connect/pages/client/note_list_page.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'SelectAppointmentPage.dart';
+import 'package:intl/intl.dart';
 
 class AddNotePage extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -13,6 +21,9 @@ class AddNotePage extends StatefulWidget {
 }
 
 class _AddNotePageState extends State<AddNotePage> {
+  TextEditingController _appointmentController = TextEditingController();
+  DateTime? selectedAppointment;
+
   final TextEditingController _noteController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = false;
@@ -26,14 +37,12 @@ class _AddNotePageState extends State<AddNotePage> {
     'medicationPrescribe': TextEditingController(),
   };
 
-  String? dropdownValue; // Initialize this with your default value if needed
-  List<Doctor> doctors =
-      []; // Replace this with your method of fetching doctors
+  String? dropdownValue;
+  List<Doctor> doctors = [];
 
   @override
   void initState() {
     super.initState();
-    // Fetch doctors here
     _fetchDoctors();
   }
 
@@ -46,7 +55,6 @@ class _AddNotePageState extends State<AddNotePage> {
       setState(() {
         doctors =
             querySnapshot.docs.map((doc) => Doctor.fromFirestore(doc)).toList();
-        // Set default dropdown value if there are doctors available
         if (doctors.isNotEmpty) {
           dropdownValue = doctors.first.id;
         }
@@ -60,15 +68,13 @@ class _AddNotePageState extends State<AddNotePage> {
     try {
       User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        _isLoading = true;
+        setState(() => _isLoading = true);
 
-        // Find the selected doctor to get their name
         Doctor? selectedDoctor = doctors.firstWhere(
           (doctor) => doctor.id == dropdownValue,
           orElse: () => Doctor(id: '', name: 'Unknown Doctor', specialty: ''),
         );
 
-        // Prepare the note data by gathering all controller values
         final Map<String, dynamic> noteData = {
           'bodyTemperature': _controllers['bodyTemperature']?.text,
           'painLocation': _controllers['painLocation']?.text,
@@ -78,25 +84,25 @@ class _AddNotePageState extends State<AddNotePage> {
           'currentMedication': _controllers['currentMedication']?.text,
           'medicationPrescribe': _controllers['medicationPrescribe']?.text,
           'assignedTo': dropdownValue,
-          'doctorId': dropdownValue, // Add doctorId field for filtering
-          'doctorName': selectedDoctor.name, // Add doctor name
+          'doctorId': dropdownValue,
+          'doctorName': selectedDoctor.name,
           'clientName': widget.userData?['name'],
           'clientEmail': widget.userData?['email'],
           'clientId': user.uid,
           'timestamp': Timestamp.now(),
+          'appointmentDateTime': selectedAppointment != null //<-- Added appointmentDateTime field
+              ? Timestamp.fromDate(selectedAppointment!)
+              : null,
         };
 
-        // Save the note data to Firestore
         DocumentReference noteRef = await _firestore
             .collection('accounts')
             .doc(user.uid)
             .collection('notes')
             .add(noteData);
 
-        // Get the note ID
         String noteId = noteRef.id;
 
-        // Add a notification with the note ID
         await _firestore
             .collection('accounts')
             .doc(dropdownValue)
@@ -104,32 +110,39 @@ class _AddNotePageState extends State<AddNotePage> {
             .add({
           'name': widget.userData?['name'],
           'email': widget.userData?['email'],
-          'noteId': noteId, // Add the note ID here
+          'noteId': noteId,
           'message': widget.userData?['name'] + ' sent a consultation request',
           'type': 'consultation_request',
           'timestamp': Timestamp.now(),
           'isNew': true,
         });
 
-        Navigator.pop(context); // Close the dialog after saving
+        Navigator.pop(context);
       }
     } catch (e) {
-      print("Failed to Health Assesment: $e");
+      print("Failed to save Health Assessment: $e");
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
-
+// Appointment Date & Time 
   Widget _buildTextField(String key, String label,
-      {bool obscureText = false, bool readOnly = false, VoidCallback? onTap}) {
+      {bool obscureText = false,
+      bool readOnly = false,
+      VoidCallback? onTap,
+      TextEditingController? controller,
+      IconData? suffixIcon}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: Color(0xFF9ACBD0).withOpacity(0.3),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5!),
+        border: Border.all(
+            color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5),
       ),
       child: TextField(
-        controller: _controllers[key],
+        controller: controller ?? _controllers[key],
         obscureText: obscureText,
         readOnly: readOnly,
         onTap: onTap,
@@ -140,6 +153,9 @@ class _AddNotePageState extends State<AddNotePage> {
               fontWeight: FontWeight.w400,
               fontSize: 16),
           border: InputBorder.none,
+          suffixIcon: suffixIcon != null
+              ? Icon(suffixIcon, color: const Color(0xFF006A71))
+              : null,
         ),
       ),
     );
@@ -160,13 +176,8 @@ class _AddNotePageState extends State<AddNotePage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.close,
-              color: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-            },
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
@@ -174,42 +185,31 @@ class _AddNotePageState extends State<AddNotePage> {
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Text(
-                'Symptoms:',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF006A71),
-                    fontWeight: FontWeight.w500),
-              ),
+            children: [
+              const Text('Symptoms:',
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF006A71),
+                      fontWeight: FontWeight.w500)),
               _buildTextField('bodyTemperature', 'Body Temperature:'),
-              const SizedBox(height: 5.0),
               _buildTextField('painLocation', 'Pain Location:'),
-              const SizedBox(height: 5.0),
               _buildTextField('painIntensity', 'Pain Intensity:'),
-              const SizedBox(height: 5.0),
               const Text("Patient's Description:",
                   style: TextStyle(
                       fontSize: 13,
                       color: Color(0xFF006A71),
                       fontWeight: FontWeight.w500)),
-              const SizedBox(height: 5.0),
               _buildTextField('patientFeels', 'How the Patient Feels:'),
-              const SizedBox(height: 5.0),
               _buildTextField('onsetSymptoms', 'Onset of Symptoms:'),
-              const SizedBox(height: 5.0),
               const Text("Medications:",
                   style: TextStyle(
                       fontSize: 13,
                       color: Color(0xFF006A71),
                       fontWeight: FontWeight.w500)),
-              const SizedBox(height: 5.0),
               _buildTextField('currentMedication', 'Current Medications:'),
-              const SizedBox(height: 5.0),
               _buildTextField('medicationPrescribe', 'Medication Prescribed:'),
-              const SizedBox(height: 5.0),
+              const SizedBox(height: 10),
               const Text("Assigned Doctor:",
                   style: TextStyle(
                       fontSize: 13,
@@ -246,14 +246,49 @@ class _AddNotePageState extends State<AddNotePage> {
                   ),
                 ),
               ),
+              const Text("Appointment:",
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF006A71),
+                      fontWeight: FontWeight.w500)),
+              _buildTextField(
+                'appointment',
+                'Select Appointment Date & Time',
+                readOnly: true,
+                controller: _appointmentController,
+                suffixIcon: Icons.calendar_today,
+                onTap: () async {
+                  if (dropdownValue != null) {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            SelectAppointmentPage(doctorId: dropdownValue!),
+                      ),
+                    );
+
+                    if (result != null) {
+                      setState(() {
+                        selectedAppointment = result;
+                        _appointmentController.text =
+                            DateFormat('E, MMM d, yyyy - h:mm a')
+                                .format(selectedAppointment!);
+                      });
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text("Please select a doctor first.")),
+                    );
+                  }
+                },
+              ),
               const SizedBox(height: 16.0),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
-                children: <Widget>[
+                children: [
                   TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
+                    onPressed: () => Navigator.pop(context),
                     child: const Text(
                       'Close',
                       style: TextStyle(
@@ -264,10 +299,7 @@ class _AddNotePageState extends State<AddNotePage> {
                   ),
                   const SizedBox(width: 8.0),
                   _isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(),
-                          widthFactor: 2.0,
-                        )
+                      ? const Center(child: CircularProgressIndicator())
                       : ElevatedButton(
                           onPressed: saveNote,
                           child: const Text(
