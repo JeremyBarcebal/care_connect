@@ -91,6 +91,21 @@ service cloud.firestore {
     }
 
     // -----------------------------
+    // TOP-LEVEL SCHEDULES COLLECTION
+    // Doctor schedules - any authenticated user can read, only owner can write
+    // scheduleId is the doctorId
+    // -----------------------------
+    match /schedules/{scheduleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == scheduleId;
+
+      match /dates/{dateId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && request.auth.uid == scheduleId;
+      }
+    }
+
+    // -----------------------------
     // CHAT SYSTEM
     // Allow users to access chats they're members of
     // Simplifying: allow any authenticated user to read chats

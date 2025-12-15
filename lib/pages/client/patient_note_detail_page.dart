@@ -21,12 +21,28 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
     super.initState();
   }
 
-  String _getFormattedDateTime(dynamic timestamp) {
-    if (timestamp is Timestamp) {
-      DateTime dateTime = timestamp.toDate();
-      return intl.DateFormat('MMM dd, yyyy - hh:mm a').format(dateTime);
+  String _safeGetString(dynamic value, {String defaultValue = 'N/A'}) {
+    try {
+      if (value == null) return defaultValue;
+      if (value is String) return value.isEmpty ? defaultValue : value;
+      return value.toString();
+    } catch (e) {
+      print("⚠️ Error converting value to string: $e");
+      return defaultValue;
     }
-    return 'Unknown';
+  }
+
+  String _getFormattedDateTime(dynamic timestamp) {
+    try {
+      if (timestamp is Timestamp) {
+        DateTime dateTime = timestamp.toDate();
+        return intl.DateFormat('MMM dd, yyyy - hh:mm a').format(dateTime);
+      }
+      return 'Unknown';
+    } catch (e) {
+      print("⚠️ Error formatting datetime: $e");
+      return 'Unknown';
+    }
   }
 
   @override
@@ -40,9 +56,15 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
     try {
       final data = widget.noteData.data() as Map<String, dynamic>?;
       if (data != null) {
-        // Safe access to approved field
+        // Safe access to approved field with proper type handling
         if (data.containsKey('approved')) {
-          approvedStatus = data['approved'] as bool?;
+          var approvedValue = data['approved'];
+          if (approvedValue is bool) {
+            approvedStatus = approvedValue;
+          } else if (approvedValue is String) {
+            approvedStatus = approvedValue.toLowerCase() == 'true';
+          }
+
           if (approvedStatus == true) {
             statusText = 'Approved';
             statusIcon = Icons.check_circle;
@@ -58,6 +80,7 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
       }
     } catch (e) {
       // If there's any error, use default pending status
+      print("❌ Error parsing note data: $e");
       statusText = 'Pending';
       statusIcon = Icons.schedule;
       doctorName = 'Unassigned Doctor';
@@ -65,10 +88,12 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Consultation Request Details', style: TextStyle(
-        color: Colors.white,
-        fontSize: 20, // ← Change font color here
-        fontWeight: FontWeight.w400),
+        title: const Text(
+          'Consultation Request Details',
+          style: TextStyle(
+              color: Colors.white,
+              fontSize: 20, // ← Change font color here
+              fontWeight: FontWeight.w400),
         ),
         backgroundColor: const Color(0xFF48A6A7),
       ),
@@ -82,7 +107,7 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color:Color(0xFF4DBFB8),
+                      color: Color(0xFF4DBFB8),
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: Column(
@@ -139,13 +164,46 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                   const SizedBox(height: 12),
                   _buildDetailCard(
                     'Patient Name',
-                    widget.noteData['clientName'] ?? 'N/A',
+                    _safeGetString(widget.noteData['clientName']),
                   ),
                   _buildDetailCard(
                     'Email',
-                    widget.noteData['clientEmail'] ?? 'N/A',
+                    _safeGetString(widget.noteData['clientEmail']),
+                  ),
+                  _buildDetailCard(
+                    'Mobile Number',
+                    _safeGetString(widget.noteData['clientMobileNo']),
                   ),
                   const SizedBox(height: 24),
+
+                  // Appointment Details Section
+                  if (_safeGetString(widget.noteData['selectedDateKey']) !=
+                          'N/A' ||
+                      _safeGetString(widget.noteData['selectedTimeSlot']) !=
+                          'N/A')
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Appointment Details',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF006A71),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildDetailCard(
+                          'Scheduled Date',
+                          _safeGetString(widget.noteData['selectedDateKey']),
+                        ),
+                        _buildDetailCard(
+                          'Scheduled Time',
+                          _safeGetString(widget.noteData['selectedTimeSlot']),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
 
                   // Consultation Details Section
                   const Text(
@@ -159,19 +217,19 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                   const SizedBox(height: 12),
                   _buildDetailCard(
                     'What do you feel?',
-                    widget.noteData['patientFeels'] ?? 'N/A',
+                    _safeGetString(widget.noteData['patientFeels']),
                   ),
                   _buildDetailCard(
                     'Pain Location',
-                    widget.noteData['painLocation'] ?? 'N/A',
+                    _safeGetString(widget.noteData['painLocation']),
                   ),
                   _buildDetailCard(
                     'Pain Intensity',
-                    widget.noteData['painIntensity'] ?? 'N/A',
+                    _safeGetString(widget.noteData['painIntensity']),
                   ),
                   _buildDetailCard(
                     'Onset of Symptoms',
-                    widget.noteData['onsetSymptoms'] ?? 'N/A',
+                    _safeGetString(widget.noteData['onsetSymptoms']),
                   ),
                   const SizedBox(height: 24),
 
@@ -187,17 +245,18 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                   const SizedBox(height: 12),
                   _buildDetailCard(
                     'Body Temperature',
-                    widget.noteData['bodyTemperature'] ?? 'N/A',
+                    _safeGetString(widget.noteData['bodyTemperature']),
                   ),
                   _buildDetailCard(
                     'Current Medication',
-                    widget.noteData['currentMedication'] ?? 'None',
+                    _safeGetString(widget.noteData['currentMedication'],
+                        defaultValue: 'None'),
                   ),
                   const SizedBox(height: 24),
 
                   // Doctor's Response Section
-                  if (widget.noteData['medicationPrescribe'] != null &&
-                      widget.noteData['medicationPrescribe']!.isNotEmpty)
+                  if (_safeGetString(widget.noteData['medicationPrescribe']) !=
+                      'N/A')
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -212,7 +271,8 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                         const SizedBox(height: 12),
                         _buildDetailCard(
                           'Medication Prescribed',
-                          widget.noteData['medicationPrescribe'] ?? 'N/A',
+                          _safeGetString(
+                              widget.noteData['medicationPrescribe']),
                         ),
                       ],
                     ),
@@ -230,7 +290,8 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                           icon: const Icon(Icons.close),
                           label: const Text('Go Back'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color.fromARGB(255, 121, 121, 121),
+                            backgroundColor:
+                                const Color.fromARGB(255, 121, 121, 121),
                             foregroundColor: Colors.white,
                           ),
                         ),
@@ -263,9 +324,9 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color:  Color(0xFF9ACBD0).withOpacity(0.2),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5),
+            border: Border.all(
+                color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5),
           ),
           child: Text(
             value,

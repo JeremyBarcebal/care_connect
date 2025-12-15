@@ -155,7 +155,7 @@ class _ClientPageState extends State<ClientPage> {
             left: 20.0,
           ),
           child: Container(
-            height: 63,
+            height: 65,
             decoration: BoxDecoration(
               color: Color(0xFF48A6A7),
               borderRadius: BorderRadius.vertical(

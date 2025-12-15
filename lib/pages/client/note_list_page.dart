@@ -160,12 +160,38 @@ class NoteItem extends StatelessWidget {
       doctorName = 'Unassigned Doctor';
     }
 
+    // Safely convert approved field to boolean
+    bool? approvedStatus;
+    IconData statusIcon = Icons.check_box_outline_blank; // Pending (default)
+    try {
+      if (note.data() != null && note.data().containsKey('approved')) {
+        var approvedValue = note['approved'];
+        if (approvedValue is bool) {
+          approvedStatus = approvedValue;
+        } else if (approvedValue is String) {
+          approvedStatus = approvedValue.toLowerCase() == 'true';
+        }
+
+        if (approvedStatus == true) {
+          statusIcon = Icons.check_circle; // Approved
+        } else if (approvedStatus == false) {
+          statusIcon = Icons.cancel; // Declined
+        }
+      }
+    } catch (e) {
+      print("⚠️ Error parsing approved status: $e");
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 5.0),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color.fromRGBO(0, 106, 113, 1).withOpacity(0.8),
+          color: Color(0xFF9ACBD0).withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Color.fromARGB(255, 156, 156, 156),
+            width: .6,
+          ),
         ),
         child: ListTile(
           onTap: () {
@@ -182,27 +208,26 @@ class NoteItem extends StatelessWidget {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: Icon(
-              note != null &&
-                      note.data() != null &&
-                      note.data().containsKey('approved')
-                  ? (note['approved'] == true
-                      ? Icons.check_box_rounded
-                      : Icons.disabled_by_default_rounded)
-                  : Icons.check_box_outline_blank,
-              color: Colors.white),
+            statusIcon,
+            color: statusIcon == Icons.check_circle
+                ? Colors.green
+                : statusIcon == Icons.cancel
+                    ? Colors.red
+                    : Color(0xFF006A71),
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: Color.fromARGB(255, 0, 0, 0)),
               ),
               const SizedBox(height: 4),
               Text(
                 'Assigned to: $doctorName',
                 style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
+                  color: Color.fromARGB(179, 21, 21, 21),
+                  fontSize: 10,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -210,7 +235,8 @@ class NoteItem extends StatelessWidget {
           ),
           trailing: Text(
             formattedTime,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(
+                color: Color.fromARGB(255, 28, 29, 29), fontSize: 9),
           ),
         ),
       ),

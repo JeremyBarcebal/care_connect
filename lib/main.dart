@@ -1,25 +1,34 @@
-import 'dart:async'; // Import this for using Timer
-import 'package:care_connect/pages/not_verified_page.dart';
-import 'package:care_connect/pages/signup_doctor_page.dart';
-import 'package:care_connect/pages/signup_patient_page.dart';
-import 'package:care_connect/pages/user_selection_page.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+// Notification Imports
+import 'package:care_connect/services/notification_service.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
+
+// Your existing page imports
+import 'pages/not_verified_page.dart';
+import 'pages/signup_doctor_page.dart';
+import 'pages/signup_patient_page.dart';
+import 'pages/user_selection_page.dart';
 import 'pages/client_page.dart';
 import 'pages/doctor_page.dart';
 import 'pages/login_page.dart';
-// import 'package:firebase_core/firebase_core.dart';
-// import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  tzdata.initializeTimeZones();
+  tz.setLocalLocation(tz.getLocation('Asia/Manila'));
+  await initializeNotifications(); // <-- Initialize notifications here
   runApp(MyApp());
 }
 
 class MyApp extends StatelessWidget {
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

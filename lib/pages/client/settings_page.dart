@@ -128,7 +128,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 Expanded(child: Text('Error picking image: $e')),
               ],
             ),
-            backgroundColor: Colors.red[700],
+            backgroundColor: Colors.red[500],
             duration: const Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
             shape:
@@ -407,11 +407,15 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: const Color(0xFF48A6A7),
-        foregroundColor: Colors.white,
-        centerTitle: true,
+      title: const Text('Settings',
+      style: TextStyle(
+        fontSize: 18,
       ),
+    ),
+    backgroundColor: Color(0xFF48A6A7),
+    foregroundColor: Colors.white,
+    centerTitle: true,
+  ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),

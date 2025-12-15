@@ -46,6 +46,20 @@ FIREBASE FIRESTORE STRUCTURE:
 │  │        ├─ [1]
 │  │        │  └─ ...
 │  │
+│  │  Subcollection: schedules (for doctors only)
+│  │  └─ Doc: {scheduleId}
+│  │     ├─ createdAt: timestamp
+│  │     └─ Subcollection: dates
+│  │        └─ Doc: {date key} (e.g., "Mon Dec 15 2025")
+│  │           └─ slots: array
+│  │              ├─ [0]
+│  │              │  ├─ time: string (HH:MM AM/PM format, e.g., "10:24 PM")
+│  │              │  ├─ status: string ("available" or "booked")
+│  │              │  ├─ updatedAt: timestamp
+│  │              │  └─ bookedBy: string (patient name, optional if booked)
+│  │              ├─ [1]
+│  │              │  └─ ...
+│  │
 │  │  Doc: _metadata (metadata only)
 │  │     └─ initialized: boolean (true)
 │  │
