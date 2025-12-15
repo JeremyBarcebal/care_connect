@@ -77,7 +77,7 @@ class _ChatPageState extends State<ChatPage> {
 
   /// Fetch prescription with intelligent caching
   /// First checks cache, then fetches from Firestore and caches the result
-  Future<Map<String, dynamic>> _fetchPrescriptionWithCache(
+  Future<Map<String, dynamic>?> _fetchPrescriptionWithCache(
     String patientId,
     String prescriptionId,
   ) async {
@@ -87,7 +87,7 @@ class _ChatPageState extends State<ChatPage> {
     // Check if already in cache
     if (_prescriptionCache.containsKey(cacheKey)) {
       print('Loading prescription from cache: $cacheKey');
-      return _prescriptionCache[cacheKey]!;
+      return _prescriptionCache[cacheKey];
     }
 
     // Not in cache, fetch from Firestore
@@ -101,7 +101,8 @@ class _ChatPageState extends State<ChatPage> {
           .get();
 
       if (!doc.exists) {
-        throw Exception('Prescription document not found');
+        print('Prescription document not found: $cacheKey');
+        return null; // Return null instead of throwing
       }
 
       final presData = doc.data() as Map<String, dynamic>;
@@ -113,7 +114,7 @@ class _ChatPageState extends State<ChatPage> {
       return presData;
     } catch (e) {
       print('Error fetching prescription: $e');
-      rethrow;
+      return null; // Return null on error
     }
   }
 
@@ -269,7 +270,7 @@ class _ChatPageState extends State<ChatPage> {
                             return const Text('Invalid prescription reference');
                           }
 
-                          return FutureBuilder<Map<String, dynamic>>(
+                          return FutureBuilder<Map<String, dynamic>?>(
                             future: _fetchPrescriptionWithCache(
                                 patientId, prescriptionId),
                             builder: (context, snap) {
@@ -296,12 +297,48 @@ class _ChatPageState extends State<ChatPage> {
                                   ),
                                 );
                               }
-                              if (snap.hasError) {
-                                return Text(
-                                    'Error loading prescription: ${snap.error}');
-                              }
-                              if (!snap.hasData) {
-                                return const Text('Prescription not found');
+                              if (snap.hasError || snap.data == null) {
+                                return Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildProfileAvatar(cachedPhoto, 32),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: const Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Prescription',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                            SizedBox(height: 4),
+                                            Text(
+                                              'Prescription could not be found',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.red,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
                               }
                               final presData = snap.data!;
 
@@ -666,7 +703,20 @@ class _ChatPageState extends State<ChatPage> {
             .doc(presId)
             .get();
         if (!doc.exists) {
-          throw Exception('Referenced prescription not found');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Prescription no longer exists. It may have been deleted.'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          setState(() {
+            _isAcceptingPrescription = false;
+          });
+          return;
         }
         final full = doc.data() as Map<String, dynamic>;
         // Use the fetched prescription as the source of truth
@@ -772,33 +822,39 @@ class _ChatPageState extends State<ChatPage> {
         );
       }
 
-      // Update prescription status in chat
-      // If this prescription originated from accounts/.../prescriptions, update that doc too
-      if (prescription['prescriptionId'] != null) {
-        try {
-          final presId = prescription['prescriptionId'].toString();
-          final patientId = prescription['patientId'].toString();
-          await FirebaseFirestore.instance
-              .collection('accounts')
-              .doc(patientId)
-              .collection('prescriptions')
-              .doc(presId)
-              .update({
-            'status': 'accepted',
-            'acceptedBy': FirebaseAuth.instance.currentUser?.uid,
-            'acceptedAt': FieldValue.serverTimestamp(),
-          });
-        } catch (e) {
-          print('Failed to update prescription doc status: $e');
-        }
-      }
-
+      // Update prescription status in chat message
       await FirebaseFirestore.instance
           .collection('chats')
           .doc(widget.chatDocumentId)
           .collection('convo')
           .doc(messageDocId)
           .update({'status': 'accepted'});
+
+      // Update prescription status in patient's prescription collection
+      // This is the source of truth for prescription status
+      if (prescription['prescriptionId'] != null) {
+        final presId = prescription['prescriptionId'].toString();
+        final patientId = prescription['patientId'].toString();
+
+        print(
+            'Updating prescription status: presId=$presId, patientId=$patientId');
+
+        await FirebaseFirestore.instance
+            .collection('accounts')
+            .doc(patientId)
+            .collection('prescriptions')
+            .doc(presId)
+            .update({
+          'status': 'accepted',
+          'acceptedBy': FirebaseAuth.instance.currentUser?.uid,
+          'acceptedAt': FieldValue.serverTimestamp(),
+        }).then((_) {
+          print('✓ Prescription status updated to accepted');
+        }).catchError((e) {
+          print('✗ Failed to update prescription status: $e');
+          throw Exception('Failed to update prescription status: $e');
+        });
+      }
 
       // Create notification for doctor that patient accepted
       final patientName =

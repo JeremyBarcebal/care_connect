@@ -202,8 +202,9 @@ class _TaskPageState extends State<TaskPage> {
                     return Center(child: Text('No tasks available.'));
                   }
 
-                  var tasks = snapshot.data!['tasks'] as List<dynamic>?;
-                  if (tasks == null || tasks.isEmpty) {
+                  final data = snapshot.data!.data() as Map<String, dynamic>?;
+                  var tasks = (data?['tasks'] as List<dynamic>?) ?? [];
+                  if (tasks.isEmpty) {
                     return Center(child: Text('No tasks available.'));
                   }
 

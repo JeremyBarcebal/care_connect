@@ -43,8 +43,10 @@ class _SchedulePageState extends State<SchedulePage> {
         .get();
 
     if (snap.exists && snap.data() != null) {
+      final data = snap.data() as Map<String, dynamic>?;
+      final tasksList = (data?['tasks'] as List<dynamic>?) ?? [];
       setState(() {
-        medicines = List<Map<String, dynamic>>.from(snap['tasks']);
+        medicines = List<Map<String, dynamic>>.from(tasksList);
       });
     }
   }

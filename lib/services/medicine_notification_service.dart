@@ -110,11 +110,16 @@ class MedicineNotificationService {
       print('Task snapshot received: ${snapshot.docs.length} date documents');
       for (var doc in snapshot.docs) {
         final dateStr = doc.id;
-        final tasks = (doc['tasks'] as List?) ?? [];
-        print('Date: $dateStr - Found ${tasks.length} tasks');
+        try {
+          final data = doc.data() as Map<String, dynamic>?;
+          final tasks = (data?['tasks'] as List?) ?? [];
+          print('Date: $dateStr - Found ${tasks.length} tasks');
 
-        for (var task in tasks) {
-          _scheduleNotificationForTask(task, dateStr, userId);
+          for (var task in tasks) {
+            _scheduleNotificationForTask(task, dateStr, userId);
+          }
+        } catch (e) {
+          print('Error accessing tasks for date $dateStr: $e');
         }
       }
     }, onError: (error) {
