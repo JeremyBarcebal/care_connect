@@ -164,10 +164,10 @@ class NoteItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 15.0, vertical: 5.0),
       child: Container(
         decoration: BoxDecoration(
-          color: Color(0xFF9ACBD0).withOpacity(0.25),
+          color: Color(0xFF9ACBD0).withOpacity(0.15),
           borderRadius: BorderRadius.circular(12),
            border: Border.all(
-        color:Color.fromARGB(255, 10, 141, 156).withOpacity(0.8),width:0.8, 
+        color:Color.fromARGB(255, 156, 156, 156),width:.6, 
         ),
         ),
         child: ListTile(
@@ -213,7 +213,7 @@ class NoteItem extends StatelessWidget {
           ),
           trailing: Text(
             formattedTime,
-            style: const TextStyle(color: Color(0xFF48A6A7), fontSize: 10),
+            style: const TextStyle(color: Color.fromARGB(255, 28, 29, 29), fontSize: 9),
           ),
         ),
       ),

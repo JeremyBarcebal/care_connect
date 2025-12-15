@@ -24,14 +24,14 @@ class _MessagePageState extends State<MessagePage> {
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(150),
         child: AppBar(
-          toolbarHeight: 150.0,
+          toolbarHeight: 180.0,
           title: Column(
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 0.0),
                 child: Text(
                   "Messages",
-                  style: TextStyle(fontSize: 20, color: Colors.white),
+                  style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 10),
