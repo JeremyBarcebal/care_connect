@@ -26,9 +26,11 @@ class _AddNotePageState extends State<AddNotePage> {
     'medicationPrescribe': TextEditingController(),
   };
 
-  String? dropdownValue; // Initialize this with your default value if needed
-  List<Doctor> doctors =
-      []; // Replace this with your method of fetching doctors
+  String? dropdownValue;
+  List<Doctor> doctors = [];
+  Map<String, dynamic>? selectedDoctorSchedules;
+  String? selectedTimeSlot;
+  String? selectedDateKey;
 
   @override
   void initState() {
@@ -49,10 +51,72 @@ class _AddNotePageState extends State<AddNotePage> {
         // Set default dropdown value if there are doctors available
         if (doctors.isNotEmpty) {
           dropdownValue = doctors.first.id;
+          _fetchDoctorSchedules(doctors.first.id);
         }
       });
     } catch (e) {
       print("Failed to fetch doctors: $e");
+    }
+  }
+
+  Future<void> _fetchDoctorSchedules(String doctorId) async {
+    try {
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('schedules')
+          .where('doctorId', isEqualTo: doctorId)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        setState(() {
+          selectedDoctorSchedules =
+              querySnapshot.docs.first.data() as Map<String, dynamic>;
+          selectedTimeSlot = null;
+          selectedDateKey = selectedDoctorSchedules?['dateKey'];
+        });
+      } else {
+        setState(() {
+          selectedDoctorSchedules = null;
+          selectedTimeSlot = null;
+          selectedDateKey = null;
+        });
+      }
+    } catch (e) {
+      print("Failed to fetch doctor schedules: $e");
+    }
+  }
+
+  Future<void> _updateScheduleStatus(String doctorId, String dateKey,
+      String timeSlot, String patientName) async {
+    try {
+      // Find the schedule document
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('schedules')
+          .where('doctorId', isEqualTo: doctorId)
+          .where('dateKey', isEqualTo: dateKey)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        DocumentReference scheduleRef = querySnapshot.docs.first.reference;
+        final scheduleData =
+            querySnapshot.docs.first.data() as Map<String, dynamic>;
+        final slots =
+            List<Map<String, dynamic>>.from(scheduleData['slots'] ?? []);
+
+        // Find and update the slot status
+        for (int i = 0; i < slots.length; i++) {
+          if (slots[i]['time'] == timeSlot) {
+            slots[i]['status'] = 'booked';
+            slots[i]['bookedBy'] = patientName;
+            break;
+          }
+        }
+
+        // Update the schedule in Firestore
+        await scheduleRef.update({'slots': slots});
+        print('Schedule updated: $timeSlot marked as booked by $patientName');
+      }
+    } catch (e) {
+      print("Failed to update schedule status: $e");
     }
   }
 
@@ -82,8 +146,11 @@ class _AddNotePageState extends State<AddNotePage> {
           'doctorName': selectedDoctor.name, // Add doctor name
           'clientName': widget.userData?['name'],
           'clientEmail': widget.userData?['email'],
+          'clientMobileNo': widget.userData?['mobileNo'],
           'clientId': user.uid,
           'timestamp': Timestamp.now(),
+          'selectedTimeSlot': selectedTimeSlot,
+          'selectedDateKey': selectedDateKey,
         };
 
         // Save the note data to Firestore
@@ -104,12 +171,23 @@ class _AddNotePageState extends State<AddNotePage> {
             .add({
           'name': widget.userData?['name'],
           'email': widget.userData?['email'],
+          'mobileNo': widget.userData?['mobileNo'],
           'noteId': noteId, // Add the note ID here
           'message': widget.userData?['name'] + ' sent a consultation request',
           'type': 'consultation_request',
           'timestamp': Timestamp.now(),
           'isNew': true,
+          'selectedTimeSlot': selectedTimeSlot,
+          'selectedDateKey': selectedDateKey,
         });
+
+        // Update the schedule status if a time slot was selected
+        if (selectedTimeSlot != null &&
+            selectedDateKey != null &&
+            dropdownValue != null) {
+          await _updateScheduleStatus(dropdownValue!, selectedDateKey!,
+              selectedTimeSlot!, widget.userData?['name'] ?? 'Unknown Patient');
+        }
 
         Navigator.pop(context); // Close the dialog after saving
       }
@@ -126,7 +204,8 @@ class _AddNotePageState extends State<AddNotePage> {
       decoration: BoxDecoration(
         color: Color(0xFF9ACBD0).withOpacity(0.3),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5!),
+        border: Border.all(
+            color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5!),
       ),
       child: TextField(
         controller: _controllers[key],
@@ -141,6 +220,90 @@ class _AddNotePageState extends State<AddNotePage> {
               fontSize: 16),
           border: InputBorder.none,
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvailableSlots() {
+    if (selectedDoctorSchedules == null) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+        ),
+        child: const Text(
+          'No available schedules for this doctor',
+          style: TextStyle(color: Colors.grey, fontSize: 14),
+        ),
+      );
+    }
+
+    final slots = (selectedDoctorSchedules?['slots'] as List<dynamic>?) ?? [];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Available Schedule: ${selectedDateKey ?? 'N/A'}',
+            style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF006A71),
+                fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: slots.map<Widget>((slot) {
+              final time = slot['time'] as String? ?? 'N/A';
+              final status = slot['status'] as String? ?? 'booked';
+              final isAvailable = status == 'available';
+              final isSelected = selectedTimeSlot == time;
+
+              return GestureDetector(
+                onTap: isAvailable
+                    ? () {
+                        setState(() {
+                          selectedTimeSlot = isSelected ? null : time;
+                        });
+                      }
+                    : null,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isAvailable
+                        ? (isSelected
+                            ? Colors.blue
+                            : Colors.blue.withOpacity(0.1))
+                        : Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isAvailable ? Colors.blue : Colors.red,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    time,
+                    style: TextStyle(
+                      color: isAvailable
+                          ? (isSelected ? Colors.white : Colors.blue)
+                          : Colors.red,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
@@ -239,6 +402,9 @@ class _AddNotePageState extends State<AddNotePage> {
                       setState(() {
                         dropdownValue = newValue;
                       });
+                      if (newValue != null) {
+                        _fetchDoctorSchedules(newValue);
+                      }
                     },
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     style:
@@ -246,6 +412,8 @@ class _AddNotePageState extends State<AddNotePage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 12.0),
+              _buildAvailableSlots(),
               const SizedBox(height: 16.0),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,

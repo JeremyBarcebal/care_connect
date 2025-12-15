@@ -150,7 +150,7 @@ class _ClientPageState extends State<ClientPage> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(
-            bottom: 15,
+            bottom: 25,
             right: 20.0,
             left: 20.0,
           ),
@@ -164,8 +164,8 @@ class _ClientPageState extends State<ClientPage> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color.fromARGB(255, 255, 255, 255)
-                      .withOpacity(0.1),
+                  color:
+                      const Color.fromARGB(255, 255, 255, 255).withOpacity(0.1),
                   blurRadius: 10.0,
                   spreadRadius: 2.0,
                   offset: const Offset(0, -2),
