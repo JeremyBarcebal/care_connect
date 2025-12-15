@@ -150,12 +150,12 @@ class _ClientPageState extends State<ClientPage> {
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(
-            bottom: 15,
+            bottom: 20,
             right: 20.0,
             left: 20.0,
           ),
           child: Container(
-            height: 63,
+            height: 65,
             decoration: BoxDecoration(
               color: Color(0xFF48A6A7),
               borderRadius: BorderRadius.vertical(

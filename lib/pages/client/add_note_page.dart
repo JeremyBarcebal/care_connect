@@ -145,9 +145,9 @@ class _AddNotePageState extends State<AddNotePage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-              color: Color.fromARGB(255, 12, 55, 52),
+              color: Color.fromARGB(255, 52, 51, 51),
               fontWeight: FontWeight.w400,
-              fontSize: 16),
+              fontSize: 12),
           border: InputBorder.none,
           suffixIcon: suffixIcon != null
               ? Icon(suffixIcon, color: const Color(0xFF006A71))
@@ -167,7 +167,7 @@ class _AddNotePageState extends State<AddNotePage> {
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
           ),
         ),
         actions: [
@@ -208,7 +208,7 @@ class _AddNotePageState extends State<AddNotePage> {
               const SizedBox(height: 10),
               const Text("Assigned Doctor:",
                   style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Color(0xFF006A71),
                       fontWeight: FontWeight.w500)),
               Container(
@@ -216,7 +216,7 @@ class _AddNotePageState extends State<AddNotePage> {
                 margin:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Color(0xFF9ACBD0).withOpacity(0.10),
+                  color: Color(0xFF9ACBD0).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: DropdownButtonHideUnderline(

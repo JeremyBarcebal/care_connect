@@ -240,7 +240,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color:  Color(0xFF9ACBD0).withOpacity(0.5),
+        color:  Color(0xFF9ACBD0).withOpacity(0.9),
         borderRadius: BorderRadius.circular(15),
       ),
       child: DropdownButtonFormField<String>(

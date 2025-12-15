@@ -324,8 +324,8 @@ class _TaskItemState extends State<TaskItem> {
           decoration: BoxDecoration(
             color: widget.status == 'completed'
                 ? Color(0xFF9ACBD0).withOpacity(0.5)
-                :Color(0xFF9ACBD0).withOpacity(0.15) ,
-            borderRadius: BorderRadius.circular(12),
+                : Color.fromARGB(255, 230, 248, 250).withOpacity(0.2) ,
+            borderRadius: BorderRadius.circular(15),
             border: widget.status == 'completed'
                 ? Border.all(color: Color(0xFF006A71), width: 1)
                 : Border.all(color: Color(0xFF9ACBD0), width: 1),
@@ -375,39 +375,56 @@ class _TaskItemState extends State<TaskItem> {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        if (widget.status != 'completed')
+// Move Accepted/Completed badge into the same row so it sits on the side
+                  const SizedBox(width: 8),
+                       if (widget.status != 'completed')
+                        Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 230, 248, 250).withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                        color: Color.fromARGB(255, 241, 255, 255),width:(0.5),
+                     ),
+                    ),
+              child: Text('Accepted',
+                    style: TextStyle(
+                    color:  Color(0xFF4DBFB8).withOpacity(0.9),
+                    fontSize: 11,   
+                    fontWeight: FontWeight.w600,
+                  ),
+               ),
+            )
+                         else
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
+                                horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Color(0xFF48A6A7),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'Accepted',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                              color: Color(0xFF9ACBD0).withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Color.fromARGB(255, 184, 184, 184).withOpacity(.9),
+                                width: 0.05,
                               ),
                             ),
-                          )
-                        else
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Color(0xFF006A71),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'Completed',
-                              style: TextStyle(
-                                color: Color.fromARGB(255, 255, 255, 255),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check,
+                                  color: Color(0xFF4DBFB8),
+                                  size: 14,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Completed',
+                                  style: TextStyle(
+                                    color: Color(0xFF006A71).withOpacity(0.9),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                       ],
@@ -472,13 +489,13 @@ class _TaskItemState extends State<TaskItem> {
                     Row(
                       children: [
                         const Icon(Icons.access_time,
-                            color: Color.fromARGB(255, 7, 48, 51), size: 14),
+                            color: Color.fromARGB(255, 104, 105, 105), size: 12),
                         const SizedBox(width: 4),
                         Text(
                           'Time: ${widget.time}',
                           style: const TextStyle(
-                            color: Color.fromARGB(255, 7, 48, 51),
-                            fontSize: 11,
+                            color: Color.fromARGB(255, 104, 105, 105),
+                            fontSize: 10,
                           ),
                         ),
                       ],
@@ -486,7 +503,6 @@ class _TaskItemState extends State<TaskItem> {
                   ],
                 ),
               ),
-
               // Expanded Details Section
               if (_isExpanded)
                 Container(
@@ -603,6 +619,7 @@ class _TaskItemState extends State<TaskItem> {
       ),
     );
   }
+
 
   Widget _buildDetailRow({required String label, required String value}) {
     return Row(

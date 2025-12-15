@@ -24,14 +24,14 @@ class _MessagePageState extends State<MessagePage> {
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(150),
         child: AppBar(
-          toolbarHeight: 150.0,
+          toolbarHeight: 180.0,
           title: Column(
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 0.0),
                 child: Text(
                   "Messages",
-                  style: TextStyle(fontSize: 20, color: Colors.white),
+                  style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
               const SizedBox(height: 10),
@@ -222,8 +222,11 @@ class _MessagePageState extends State<MessagePage> {
               child: Container(
                 decoration: BoxDecoration(
                   color:
-                      hasUnread ? Color(0xFF006A71) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
+                      hasUnread ? Color.fromARGB(255, 72, 166, 172).withOpacity(0.15) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: hasUnread
+                      ? Border.all(color: const Color.fromARGB(255, 10, 128, 122), width: .3)
+                      : null,
                 ),
                 child: ListTile(
                   leading: _buildProfileAvatar(photoURL),
@@ -232,7 +235,7 @@ class _MessagePageState extends State<MessagePage> {
                     style: TextStyle(
                       fontWeight: hasUnread ? FontWeight.bold : FontWeight.w500,
                       fontSize: 14,
-                      color: hasUnread ? const Color.fromARGB(221, 255, 255, 255) : const Color.fromARGB(255, 255, 250, 250),
+                      color: hasUnread ? Color(0xFF006A71) : const Color.fromARGB(255, 57, 55, 55),
                     ),
                   ),
                   subtitle: Text(
