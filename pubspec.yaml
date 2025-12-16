@@ -103,9 +103,14 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/logo copy.png"
+  image_path: "assets/icon.png"
+
+  adaptive_icon_background: "#48a6a7"
+  android_minimum_version: "21"
+
   min_sdk_android: 21
+
   web:
     generate: true
-    image_path: "assets/logo copy.png"
-    background_color: "#4DBFB8"
+    image_path: "assets/icon.png"
+    background_color: "#48a6a7"

@@ -120,7 +120,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 25),
       decoration: BoxDecoration(
-        color:  Colors.grey[300],
+        color:  Colors.grey[200],
         borderRadius: BorderRadius.circular(15),
       ),
       child: TextField(
@@ -131,7 +131,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-            fontSize: 14,
+            fontSize: 13 ,
             color: Colors.black,
             fontWeight: FontWeight.w400,
           ),
@@ -240,7 +240,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color:  Color(0xFF9ACBD0).withOpacity(0.9),
+        color: Colors.grey[200],
         borderRadius: BorderRadius.circular(15),
       ),
       child: DropdownButtonFormField<String>(
@@ -248,7 +248,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-            fontSize: 14,
+            fontSize: 13,
             color: Colors.black,
             fontWeight: FontWeight.w400,
           ),

@@ -151,7 +151,7 @@ class _LoginPageState extends State<LoginPage> {
                         // Email field
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(20),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -160,6 +160,7 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: const InputDecoration(
                               hintText: 'Email:',
                               hintStyle: TextStyle(
+                                fontSize: 14,
                                 color: Colors.black54,
                                 fontWeight: FontWeight.w400,
                               ),
@@ -173,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                         // Password field
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(20),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -183,6 +184,7 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: const InputDecoration(
                               hintText: 'Password:',
                               hintStyle: TextStyle(
+                                fontSize: 14,
                                 color: Colors.black54,
                                 fontWeight: FontWeight.w400,
                               ),
@@ -211,7 +213,7 @@ class _LoginPageState extends State<LoginPage> {
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
-                                      fontWeight: FontWeight.w400,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),

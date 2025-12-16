@@ -96,7 +96,9 @@ class _NotVerifiedPageState extends State<NotVerifiedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Email Verification Required'),
+        title: const Text('Email Verification Required',  
+        style: TextStyle(color: Colors.white, fontSize: 16,
+        fontWeight: FontWeight.w500,),),
         backgroundColor: const Color(0xFF4DBFB8),
       ),
       body: Center(

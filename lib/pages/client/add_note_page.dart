@@ -317,10 +317,9 @@ class _AddNotePageState extends State<AddNotePage> {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: Color(0xFF9ACBD0).withOpacity(0.3),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
-            color: const Color(0xFF006A71).withOpacity(0.2), width: 0.5!),
+            color:const Color(0xFF006A71).withOpacity(0.4), width: 0.5),
       ),
       child: TextField(
         controller: controller ?? _controllers[key],
@@ -412,8 +411,7 @@ class _AddNotePageState extends State<AddNotePage> {
         color: const Color(0xFF9ACBD0).withOpacity(0.15),
         borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: const Color(0xFF006A71).withOpacity(0.2),
-          width: 1,
+          color: const Color(0xFF006A71).withOpacity(0.2),width: 0.5,
         ),
       ),
       child: Column(
@@ -506,12 +504,6 @@ class _AddNotePageState extends State<AddNotePage> {
             fontWeight: FontWeight.w400,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

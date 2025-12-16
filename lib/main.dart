@@ -26,7 +26,6 @@ void main() async {
   await initializeNotifications(); // <-- Initialize notifications here
   runApp(MyApp());
 }
-
 class MyApp extends StatelessWidget {
 
   @override
