@@ -14,6 +14,13 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false; // Track loading state
 
+  // Focus nodes to detect focus and show highlight
+  late FocusNode _emailFocusNode;
+  late FocusNode _passwordFocusNode;
+
+  // Password visibility
+  bool _obscurePassword = true;
+
   void _login() async {
     setState(() {
       _isLoading = true; // Show loader
@@ -80,6 +87,30 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _emailFocusNode = FocusNode();
+    _passwordFocusNode = FocusNode();
+
+    // When focus changes, rebuild to show highlight
+    _emailFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _passwordFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _emailFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   void _createAccount() {
@@ -151,21 +182,29 @@ class _LoginPageState extends State<LoginPage> {
                         // Email field
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _emailFocusNode.hasFocus
+                                  ? const Color(0xFF006A71)
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 15),
                           child: TextField(
+                            focusNode: _emailFocusNode,
                             controller: _emailController,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               hintText: 'Email:',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
+                                fontSize: 14,
                                 color: Colors.black54,
                                 fontWeight: FontWeight.w400,
                               ),
                               border: InputBorder.none,
                               contentPadding:
-                                  EdgeInsets.symmetric(vertical: 16),
+                                  const EdgeInsets.symmetric(vertical: 16),
                             ),
                           ),
                         ),
@@ -173,22 +212,42 @@ class _LoginPageState extends State<LoginPage> {
                         // Password field
                         Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey[300],
+                            color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _passwordFocusNode.hasFocus
+                                  ? const Color(0xFF006A71)
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 15),
                           child: TextField(
+                            focusNode: _passwordFocusNode,
                             controller: _passwordController,
-                            obscureText: true,
-                            decoration: const InputDecoration(
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
                               hintText: 'Password:',
-                              hintStyle: TextStyle(
+                              hintStyle: const TextStyle(
+                                fontSize: 14,
                                 color: Colors.black54,
                                 fontWeight: FontWeight.w400,
                               ),
                               border: InputBorder.none,
                               contentPadding:
-                                  EdgeInsets.symmetric(vertical: 16),
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                    color: const Color(0xFF006A71)),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
                             ),
                           ),
                         ),
@@ -211,7 +270,7 @@ class _LoginPageState extends State<LoginPage> {
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
-                                      fontWeight: FontWeight.w400,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),

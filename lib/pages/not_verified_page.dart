@@ -10,6 +10,9 @@ class NotVerifiedPage extends StatefulWidget {
 class _NotVerifiedPageState extends State<NotVerifiedPage> {
   late Timer _verificationCheckTimer;
   bool _isChecking = false;
+  // Cooldown for resend button
+  int _secondsRemaining = 0;
+  Timer? _sendCooldownTimer;
 
   @override
   void initState() {
@@ -24,6 +27,7 @@ class _NotVerifiedPageState extends State<NotVerifiedPage> {
   @override
   void dispose() {
     _verificationCheckTimer.cancel();
+    _sendCooldownTimer?.cancel();
     super.dispose();
   }
 
@@ -79,6 +83,25 @@ class _NotVerifiedPageState extends State<NotVerifiedPage> {
             ),
           );
         }
+        // start 60s cooldown
+        if (_sendCooldownTimer != null) {
+          _sendCooldownTimer!.cancel();
+        }
+        setState(() {
+          _secondsRemaining = 60;
+        });
+        _sendCooldownTimer =
+            Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (!mounted) return;
+          setState(() {
+            _secondsRemaining -= 1;
+            if (_secondsRemaining <= 0) {
+              _sendCooldownTimer?.cancel();
+              _sendCooldownTimer = null;
+              _secondsRemaining = 0;
+            }
+          });
+        });
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +119,14 @@ class _NotVerifiedPageState extends State<NotVerifiedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Email Verification Required'),
+        title: const Text(
+          'Email Verification Required',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         backgroundColor: const Color(0xFF4DBFB8),
       ),
       body: Center(
@@ -125,9 +155,12 @@ class _NotVerifiedPageState extends State<NotVerifiedPage> {
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _sendVerificationEmail,
+                onPressed:
+                    _secondsRemaining == 0 ? _sendVerificationEmail : null,
                 icon: const Icon(Icons.mail),
-                label: const Text('Send Verification Email'),
+                label: _secondsRemaining == 0
+                    ? const Text('Send Verification Email')
+                    : Text('Resend in ${_secondsRemaining}s'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4DBFB8),
                   foregroundColor: Colors.white,

@@ -16,6 +16,7 @@ import 'pages/user_selection_page.dart';
 import 'pages/client_page.dart';
 import 'pages/doctor_page.dart';
 import 'pages/login_page.dart';
+import 'splashscreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +29,6 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -37,8 +37,9 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: AuthWrapper(),
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => SplashScreen(),
         '/client': (context) => AuthGuard(child: ClientPage()),
         '/doctor': (context) => AuthGuard(child: DoctorPage()),
         '/signup-patient': (context) => const SignupPatientPage(),
