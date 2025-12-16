@@ -262,6 +262,8 @@ class _AddNotePageState extends State<AddNotePage> {
           'timestamp': Timestamp.now(),
           'selectedTimeSlot': selectedTimeSlot,
           'selectedDateKey': selectedDateKey,
+          'status': 'pending',
+          'approved': false
         };
 
         DocumentReference noteRef = await _firestore
