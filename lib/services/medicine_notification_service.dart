@@ -30,25 +30,33 @@ class MedicineNotificationService {
     try {
       // Request notification permission (Android 13+)
       final notificationStatus = await Permission.notification.request();
-      print('Notification permission: $notificationStatus');
+      print('📱 Notification permission: $notificationStatus');
 
       // Request exact alarm permission (Android 12+)
       final exactAlarmStatus = await Permission.scheduleExactAlarm.request();
-      print('Exact alarm permission: $exactAlarmStatus');
+      print('⏰ Exact alarm permission: $exactAlarmStatus');
 
-      return notificationStatus.isGranted && exactAlarmStatus.isGranted;
+      // Check if permissions are actually granted
+      final notifGranted = notificationStatus.isGranted;
+      final alarmGranted = exactAlarmStatus.isGranted;
+      print(
+          '✅ Permissions Summary - Notification: $notifGranted, Exact Alarm: $alarmGranted');
+
+      return notifGranted && alarmGranted;
     } catch (e) {
-      print('Error requesting permissions: $e');
+      print('❌ Error requesting permissions: $e');
       return false;
     }
   }
 
   /// Initialize the notification service
   Future<void> initialize() async {
+    print('📢 Initializing MedicineNotificationService...');
     tz.initializeTimeZones();
 
     // Request permissions first
-    await _requestPermissions();
+    final permissionsGranted = await _requestPermissions();
+    print('📢 Permissions granted: $permissionsGranted');
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -63,13 +71,16 @@ class MedicineNotificationService {
       iOS: iOSSettings,
     );
 
+    print('📢 Initializing notification plugin...');
     await _notificationsPlugin.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        print('Notification tapped: ${response.payload}');
+        print('🔔 Notification tapped: ${response.payload}');
       },
     );
+    print('✓ Notification plugin initialized');
 
+    print('📢 Creating Android notification channel...');
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -85,7 +96,9 @@ class MedicineNotificationService {
             showBadge: true,
           ),
         );
+    print('✓ Android notification channel created');
 
+    print('📢 Requesting iOS permissions...');
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin>()
@@ -94,6 +107,25 @@ class MedicineNotificationService {
           badge: true,
           sound: true,
         );
+    print('✓ iOS permissions requested');
+    print('✓ MedicineNotificationService initialization complete!');
+  }
+
+  /// Check and display all scheduled notifications (for debugging)
+  Future<void> debugScheduledNotifications() async {
+    try {
+      final pendingNotifications =
+          await _notificationsPlugin.pendingNotificationRequests();
+      print(
+          '\n📋 DEBUG: Total pending notifications: ${pendingNotifications.length}');
+      for (var notif in pendingNotifications) {
+        print(
+            '   - ID: ${notif.id}, Title: ${notif.title}, Body: ${notif.body}');
+      }
+      print('   - Cached notifications: ${_scheduledNotifications.length}\n');
+    } catch (e) {
+      print('Error getting pending notifications: $e');
+    }
   }
 
   /// Watch for medicine reminders and schedule notifications
@@ -171,18 +203,38 @@ class MedicineNotificationService {
         final timeStr = times[i];
         final notificationKey = '$userId-$dateStr-$medicineName-$timeStr';
 
-        if (_scheduledNotifications.containsKey(notificationKey)) {
-          continue;
-        }
+        // Don't skip if already scheduled - allow rescheduling for all days
+        // This ensures notifications trigger on all scheduled dates (e.g., 3 days = Dec 17, 18, 19)
 
-        // Parse time format (could be "09:00 AM" or "09:00")
+        // Parse time format with AM/PM conversion
+        int hour = 0;
+        int minute = 0;
+
+        // Check if time includes AM/PM
+        final isPM = RegExp(r'PM|pm').hasMatch(timeStr);
+        final isAM = RegExp(r'AM|am').hasMatch(timeStr);
+
         String cleanTimeStr =
             timeStr.replaceAll(RegExp(r'\s+(AM|PM|am|pm)$'), '').trim();
         final timeParts = cleanTimeStr.split(':');
-        if (timeParts.length != 2) continue;
+        if (timeParts.length != 2) {
+          print(
+              '    ❌ INVALID TIME FORMAT: "$timeStr" (cannot parse - expected HH:MM format)');
+          continue;
+        }
 
-        final hour = int.tryParse(timeParts[0]) ?? 0;
-        final minute = int.tryParse(timeParts[1]) ?? 0;
+        hour = int.tryParse(timeParts[0]) ?? 0;
+        minute = int.tryParse(timeParts[1]) ?? 0;
+
+        // Convert to 24-hour format if AM/PM is present
+        if (isPM && hour != 12) {
+          hour += 12; // 1 PM = 13:00, 2 PM = 14:00, etc.
+        } else if (isAM && hour == 12) {
+          hour = 0; // 12 AM = 00:00
+        }
+
+        print(
+            '    → Parsed time: $timeStr → $hour:${minute.toString().padLeft(2, '0')}');
 
         final dateFormat = DateFormat('MM-dd-yyyy');
         final DateTime scheduledDate = dateFormat.parse(dateStr);
@@ -196,7 +248,10 @@ class MedicineNotificationService {
         );
 
         final now = DateTime.now();
+        print(
+            '    → Checking time: Scheduled=$scheduledDateTime, Now=$now, IsPast=${scheduledDateTime.isBefore(now)}');
         if (scheduledDateTime.isBefore(now)) {
+          print('    → SKIPPED: Time has already passed');
           continue;
         }
 
@@ -206,9 +261,14 @@ class MedicineNotificationService {
           tz_timezone.local,
         );
 
+        print(
+            '    → Converting to TZ format: $scheduledDateTime → $tzScheduledDateTime');
+        print(
+            '    → Notification Key: $notificationKey (Hash ID: ${scheduledDateTime.hashCode + i})');
+
         try {
           print(
-              'Scheduling notification for $medicineName at $tzScheduledDateTime');
+              '    ⏰ SCHEDULING NOTIFICATION: $medicineName at $tzScheduledDateTime');
           await _notificationsPlugin.zonedSchedule(
             scheduledDateTime.hashCode + i,
             'Time to take your medicine',
@@ -240,14 +300,17 @@ class MedicineNotificationService {
                 UILocalNotificationDateInterpretation.absoluteTime,
           );
           _scheduledNotifications[notificationKey] = true;
-          print('✓ Notification scheduled successfully for $medicineName');
+          print(
+              '    ✅ SUCCESS: Notification scheduled for $medicineName at $tzScheduledDateTime');
         } on PlatformException catch (e) {
+          print(
+              '    ❌ PlatformException: Code=${e.code}, Message=${e.message}');
           if (e.code == 'exact_alarms_not_permitted') {
             print('Exact alarms not permitted, using inexact alarm instead');
             // Fallback to inexact alarm if exact alarm is not permitted
             try {
               print(
-                  'Scheduling fallback inexact notification for $medicineName');
+                  'Scheduling fallback inexact notification for $medicineName at $tzScheduledDateTime');
               await _notificationsPlugin.zonedSchedule(
                 scheduledDateTime.hashCode + i,
                 'Time to take your medicine',

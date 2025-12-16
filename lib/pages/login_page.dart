@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
@@ -22,23 +24,67 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
 
   void _login() async {
+    // Validate inputs first
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showErrorDialog(context, 'Please enter both email and password.');
+      return;
+    }
+
     setState(() {
       _isLoading = true; // Show loader
     });
 
     try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
+      print('🔐 Attempting login with email: ${_emailController.text.trim()}');
 
+      // Add timeout to prevent infinite loading
+      UserCredential userCredential = await _auth
+          .signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      )
+          .timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          print('❌ Login timeout - took longer than 30 seconds');
+          throw TimeoutException('Login request timed out. Please try again.');
+        },
+      ).catchError((Object error) {
+        // Catch errors from the Future directly
+        print('❌ Error in signInWithEmailAndPassword: $error');
+        print('❌ Error type: ${error.runtimeType}');
+        throw error;
+      });
+
+      if (!mounted) {
+        print('⚠️ Widget not mounted after login success, skipping navigation');
+        return;
+      }
+
+      print('✅ Login successful, userId: ${userCredential.user?.uid}');
       String userId = userCredential.user?.uid ?? '';
 
       if (userId.isNotEmpty) {
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('accounts')
             .doc(userId)
-            .get();
+            .get()
+            .timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            throw TimeoutException(
+                'Fetching user data timed out. Please try again.');
+          },
+        ).catchError((Object error) {
+          print('❌ Error fetching user doc: $error');
+          throw error;
+        });
+
+        if (!mounted) {
+          print(
+              '⚠️ Widget not mounted after user doc fetch, skipping navigation');
+          return;
+        }
 
         if (userDoc.exists) {
           String userType = userDoc['type'] ?? '';
@@ -54,7 +100,7 @@ class _LoginPageState extends State<LoginPage> {
           }
         } else {
           if (mounted) {
-            _showErrorDialog(context, 'User data not found in Firestore.');
+            _showErrorDialog(context, 'User data not found.');
           }
         }
       } else {
@@ -63,29 +109,136 @@ class _LoginPageState extends State<LoginPage> {
         }
       }
     } on FirebaseAuthException catch (e) {
-      String errorMessage = '';
-      if (e.code == 'user-not-found') {
-        errorMessage = 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        errorMessage = 'Incorrect password.';
-      } else if (e.code == 'invalid-email') {
-        errorMessage = 'The email address is not valid.';
-      } else {
-        errorMessage = 'An unknown error occurred: ${e.message}';
-      }
+      print('❌ FirebaseAuthException: code=${e.code}, message=${e.message}');
+      String errorMessage = _getFirebaseAuthErrorMessage(e);
       if (mounted) {
         _showErrorDialog(context, errorMessage);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Catch ALL exceptions including PlatformException and TimeoutException
+      print('❌ Exception caught: ${e.runtimeType}');
+      print('❌ Exception toString: ${e.toString()}');
+      print('❌ Exception: $e');
+      print('📋 Stack trace: $stackTrace');
+
+      String errorMessage = _getGeneralErrorMessage(e);
+
       if (mounted) {
-        _showErrorDialog(context, 'An unexpected error occurred: $e');
+        _showErrorDialog(context, errorMessage);
+      } else {
+        print('⚠️ Widget not mounted, cannot show error dialog');
       }
     } finally {
+      // ALWAYS clear loading state, even if widget is not mounted
+      print('🔄 Clearing loading state...');
       if (mounted) {
         setState(() {
           _isLoading = false; // Hide loader
         });
+        print('✓ Loading state cleared');
+      } else {
+        print('⚠️ Cannot clear loading state - widget not mounted');
       }
+    }
+  }
+
+  /// Parse any exception and return user-friendly message
+  String _getGeneralErrorMessage(dynamic exception) {
+    print('🔍 Parsing exception type: ${exception.runtimeType}');
+
+    // Handle FirebaseAuthException
+    if (exception is FirebaseAuthException) {
+      return _getFirebaseAuthErrorMessage(exception);
+    }
+
+    // Handle PlatformException (for platform-level errors)
+    if (exception is PlatformException) {
+      return _getPlatformErrorMessage(exception);
+    }
+
+    // Handle TimeoutException
+    if (exception is TimeoutException) {
+      print('🔍 TimeoutException detected');
+      return 'Request timed out. Please check your internet connection and try again.';
+    }
+
+    // Handle by string matching if it's wrapped somehow
+    final exceptionString = exception.toString().toUpperCase();
+
+    if (exceptionString.contains('ERROR_INVALID_CREDENTIAL') ||
+        exceptionString.contains('INVALID_CREDENTIAL') ||
+        exceptionString.contains('The supplied auth credential')) {
+      return 'Email or password is incorrect. Please check and try again.';
+    } else if (exceptionString.contains('USER_NOT_FOUND') ||
+        exceptionString.contains('No user record')) {
+      return 'No account found with this email. Please check your email or create a new account.';
+    } else if (exceptionString.contains('WRONG_PASSWORD')) {
+      return 'Incorrect password. Please try again.';
+    } else if (exceptionString.contains('TOO_MANY_REQUESTS')) {
+      return 'Too many failed login attempts. Please wait a moment and try again.';
+    } else if (exceptionString.contains('NETWORK') ||
+        exceptionString.contains('CONNECTION') ||
+        exceptionString.contains('TIMEOUT')) {
+      return 'Network error. Please check your internet connection and try again.';
+    } else if (exceptionString.contains('USER_DISABLED')) {
+      return 'This account has been disabled. Please contact support.';
+    }
+
+    return 'Login failed. Please try again. Error: ${exception.toString()}';
+  }
+
+  /// Get user-friendly error message for Firebase Auth errors
+  String _getFirebaseAuthErrorMessage(FirebaseAuthException e) {
+    print(
+        '🔍 Firebase error details: code=${e.code}, plugin=${e.plugin}, message=${e.message}');
+
+    switch (e.code) {
+      case 'user-not-found':
+        return 'No account found with this email. Please check your email or create a new account.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'invalid-email':
+        return 'The email address is invalid. Please enter a valid email.';
+      case 'invalid-credential':
+        return 'Email or password is incorrect. Please try again.';
+      case 'user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      case 'too-many-requests':
+        return 'Too many failed login attempts. Please wait a moment and try again.';
+      case 'operation-not-allowed':
+        return 'Login operation is temporarily unavailable. Please try again later.';
+      case 'network-request-failed':
+        return 'Network error. Please check your internet connection and try again.';
+      case 'service-disabled':
+        return 'The login service is currently unavailable. Please try again later.';
+      default:
+        return 'Login failed: ${e.message ?? 'Please try again'}';
+    }
+  }
+
+  /// Get user-friendly error message for Platform errors
+  String _getPlatformErrorMessage(PlatformException e) {
+    print('🔍 Platform error details: code=${e.code}, message=${e.message}');
+
+    // Map various platform error codes to user-friendly messages
+    final errorCode = e.code.toUpperCase();
+
+    if (errorCode.contains('INVALID_CREDENTIAL') ||
+        errorCode.contains('WRONG_PASSWORD') ||
+        errorCode.contains('USER_NOT_FOUND')) {
+      return 'Email or password is incorrect. Please try again.';
+    } else if (errorCode.contains('TOO_MANY_REQUESTS')) {
+      return 'Too many failed login attempts. Please wait a moment and try again.';
+    } else if (errorCode.contains('USER_DISABLED')) {
+      return 'This account has been disabled. Please contact support.';
+    } else if (errorCode.contains('NETWORK') ||
+        errorCode.contains('CONNECTION')) {
+      return 'Network error. Please check your internet connection and try again.';
+    } else if (errorCode.contains('OPERATION_NOT_ALLOWED') ||
+        errorCode.contains('NOT_ALLOWED')) {
+      return 'Login operation is temporarily unavailable. Please try again later.';
+    } else {
+      return 'Login failed: ${e.message ?? e.code}';
     }
   }
 
@@ -122,11 +275,23 @@ class _LoginPageState extends State<LoginPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Login Error'),
-          content: Text(errorMessage),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Login Error'),
+            ],
+          ),
+          content: Text(
+            errorMessage,
+            style: const TextStyle(fontSize: 14, height: 1.5),
+          ),
           actions: <Widget>[
             TextButton(
-              child: Text('OK'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF4DBFB8),
+              ),
+              child: const Text('OK'),
               onPressed: () {
                 Navigator.of(context).pop();
               },

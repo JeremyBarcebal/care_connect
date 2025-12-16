@@ -20,6 +20,13 @@ import 'splashscreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Add global error handlers to catch unhandled exceptions
+  FlutterError.onError = (FlutterErrorDetails details) {
+    print('🔴 FLUTTER ERROR: ${details.exception}');
+    print('📋 Stack: ${details.stack}');
+  };
+
   await Firebase.initializeApp();
 
   tzdata.initializeTimeZones();

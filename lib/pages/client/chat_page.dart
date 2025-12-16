@@ -6,6 +6,7 @@ import 'package:care_connect/models/prescription_message.dart';
 import 'package:care_connect/pages/doctor/task_service.dart';
 import 'package:care_connect/pages/doctor/add_prescription_page.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
 class ChatPage extends StatefulWidget {
   final String chatDocumentId; // Pass the chatDocumentId to specify the chat
@@ -30,6 +31,12 @@ class _ChatPageState extends State<ChatPage> {
   // Cache for prescriptions to avoid repeated fetches
   final Map<String, Map<String, dynamic>> _prescriptionCache = {};
 
+  // Cache for futures to avoid repeated fetches in FutureBuilder
+  final Map<String, Future<Map<String, dynamic>?>> _futureCache = {};
+
+  // Cache for decoded base64 images to prevent reloading
+  final Map<String, Uint8List> _decodedImageCache = {};
+
   @override
   void initState() {
     super.initState();
@@ -51,24 +58,32 @@ class _ChatPageState extends State<ChatPage> {
     var clientId = widget.chatData['client'];
 
     try {
-      // Load doctor photo
+      // Load doctor photo from server
       var docSnapshot = await FirebaseFirestore.instance
           .collection('accounts')
           .doc(doctorId)
-          .get(const GetOptions(source: Source.cache));
+          .get(const GetOptions(source: Source.server));
       if (docSnapshot.exists) {
         var docData = docSnapshot.data() as Map<String, dynamic>;
-        _photoCache[doctorId] = docData['photo'];
+        if (mounted) {
+          setState(() {
+            _photoCache[doctorId] = docData['photo'];
+          });
+        }
       }
 
-      // Load client photo
+      // Load client photo from server
       var clientSnapshot = await FirebaseFirestore.instance
           .collection('accounts')
           .doc(clientId)
-          .get(const GetOptions(source: Source.cache));
+          .get(const GetOptions(source: Source.server));
       if (clientSnapshot.exists) {
         var clientData = clientSnapshot.data() as Map<String, dynamic>;
-        _photoCache[clientId] = clientData['photo'];
+        if (mounted) {
+          setState(() {
+            _photoCache[clientId] = clientData['photo'];
+          });
+        }
       }
     } catch (e) {
       print('Error pre-loading photos: $e');
@@ -127,262 +142,267 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildChatAppBar(),
+      body: Column(
+        children: [
+          // Message List
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('chats')
+                  .doc(widget.chatDocumentId)
+                  .collection('convo')
+                  .orderBy('timestamp',
+                      descending: true) // Sort by timestamp (newest first)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text("No messages yet."));
+                }
+
+                var messages = snapshot.data!.docs;
+
+                // Scroll to bottom when new message arrives
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients &&
+                      _scrollController.position.maxScrollExtent > 0) {
+                    _scrollController.jumpTo(0); // Jump to top (reversed list)
+                  }
+                });
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  reverse: true, // Show newest messages at bottom
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  addAutomaticKeepAlives: true,
+                  addRepaintBoundaries: true,
+                  itemBuilder: (context, index) {
+                    var messageData = messages[index];
+                    User? user = FirebaseAuth.instance.currentUser;
+                    var isDoc =
+                        messageData['sender'] == widget.chatData['doctor'];
+                    var isCurrUser = messageData['sender'] == user?.uid;
+                    var isPatient = user?.uid != widget.chatData['doctor'];
+
+                    // Determine which user's photo to load based on message sender
+                    var senderUserId = messageData['sender'] as String?;
+                    var cachedPhoto = _photoCache[senderUserId ?? ''];
+
+                    // Wrap message widget with unique key to prevent unnecessary rebuilds
+                    Widget messageWidget;
+
+                    // Check if this is a prescription message or a prescription reference
+                    if (messageData['type'] == 'prescription') {
+                      messageWidget = _buildPrescriptionMessage(
+                        messageData.data() as Map<String, dynamic>,
+                        isDoc
+                            ? widget.chatData['doctorName'] + " (Doctor)"
+                            : widget.chatData['clientName'] + ' (Client)',
+                        isCurrUser,
+                        isPatient &&
+                            !isCurrUser, // Show accept button only for patient receiving
+                        messageData.id, // Pass message document ID
+                        cachedPhoto,
+                      );
+                    } else if (messageData['type'] == 'prescription_ref') {
+                      // Lazy fetch the full prescription document referenced by this chat message
+                      final prescriptionId =
+                          messageData['prescriptionId'] as String?;
+                      final patientId = messageData['patientId'] as String?;
+                      if (prescriptionId == null || patientId == null) {
+                        messageWidget =
+                            const Text('Invalid prescription reference');
+                      } else {
+                        final messageId = messageData.id;
+                        if (!_futureCache.containsKey(messageId)) {
+                          _futureCache[messageId] = _fetchPrescriptionWithCache(
+                              patientId, prescriptionId);
+                        }
+                        messageWidget = FutureBuilder<Map<String, dynamic>?>(
+                          future: _futureCache[messageId],
+                          builder: (context, snap) {
+                            if (snap.connectionState ==
+                                ConnectionState.waiting) {
+                              return Align(
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    RepaintBoundary(
+                                      child:
+                                          _buildProfileAvatar(cachedPhoto, 32),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: SizedBox(
+                                        width: 20,
+                                        height: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            if (snap.hasError || snap.data == null) {
+                              return Align(
+                                alignment: Alignment.centerLeft,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    RepaintBoundary(
+                                      child:
+                                          _buildProfileAvatar(cachedPhoto, 32),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Prescription',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'Prescription could not be found',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.red,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            final presData = snap.data!;
+
+                            // Overlay chat-level status if present
+                            presData['status'] = messageData['status'] ??
+                                presData['status'] ??
+                                'pending';
+
+                            return _buildPrescriptionMessage(
+                              presData,
+                              isDoc
+                                  ? widget.chatData['doctorName'] + " (Doctor)"
+                                  : widget.chatData['clientName'] + ' (Client)',
+                              isCurrUser,
+                              isPatient && !isCurrUser,
+                              messageData.id,
+                              cachedPhoto,
+                            );
+                          },
+                        );
+                      }
+                    } else {
+                      // Regular text message - use cached photo directly
+                      messageWidget = _buildMessageRow(
+                        isDoc
+                            ? widget.chatData['doctorName']
+                            : widget.chatData['clientName'],
+                        messageData['message'],
+                        isCurrUser,
+                        cachedPhoto,
+                      );
+                    }
+
+                    // Return message widget wrapped with unique key to prevent rebuilds
+                    return KeyedSubtree(
+                      key: ValueKey<String>(messageData.id),
+                      child: messageWidget,
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          // Input Field
+          _buildMessageInput(),
+        ],
+      ),
+    );
+  }
+
+  // Build AppBar for chat (extracted to prevent unnecessary rebuilds on keyboard toggle)
+  PreferredSizeWidget _buildChatAppBar() {
     User? user = FirebaseAuth.instance.currentUser;
     var isDocVal = user?.uid == widget.chatData['doctor'];
     var otherUserId =
         isDocVal ? widget.chatData['client'] : widget.chatData['doctor'];
 
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('accounts')
-          .doc(otherUserId)
-          .get(),
-      builder: (context, profileSnapshot) {
-        String? photo;
-        if (profileSnapshot.hasData && profileSnapshot.data!.exists) {
-          try {
-            var data = profileSnapshot.data!.data() as Map<String, dynamic>;
-            photo = data['photo'];
-          } catch (e) {
-            print('Error loading profile photo: $e');
-          }
-        }
-
-        return Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () {
-                Navigator.pop(context);
-              },
-            ),
-            title: Row(
+    return AppBar(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: () {
+          Navigator.pop(context);
+        },
+      ),
+      title: Row(
+        children: [
+          RepaintBoundary(
+            child: _buildProfileAvatar(_photoCache[otherUserId], 40),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildProfileAvatar(photo, 40),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isDocVal
-                            ? widget.chatData['clientName']
-                            : widget.chatData['doctorName'],
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      Text(
-                        isDocVal ? 'Client' : 'Doctor',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
+                Text(
+                  isDocVal
+                      ? widget.chatData['clientName']
+                      : widget.chatData['doctorName'],
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  isDocVal ? 'Client' : 'Doctor',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white70,
                   ),
                 ),
               ],
             ),
-            centerTitle: false,
-            backgroundColor: const Color(0xFF4DBFB8),
-            actions: [
-              // Show prescription button only for doctors
-              if (isDocVal)
-                IconButton(
-                  icon: const Icon(Icons.medication, color: Colors.white),
-                  tooltip: 'Send Prescription',
-                  onPressed: () {
-                    _showSendPrescriptionDialog();
-                  },
-                ),
-            ],
           ),
-          body: Column(
-            children: [
-              // Message List
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('chats')
-                      .doc(widget.chatDocumentId)
-                      .collection('convo')
-                      .orderBy('timestamp',
-                          descending: true) // Sort by timestamp (newest first)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return const Center(child: Text("No messages yet."));
-                    }
-
-                    var messages = snapshot.data!.docs;
-
-                    // Scroll to bottom when new message arrives
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (_scrollController.hasClients &&
-                          _scrollController.position.maxScrollExtent > 0) {
-                        _scrollController
-                            .jumpTo(0); // Jump to top (reversed list)
-                      }
-                    });
-
-                    return ListView.builder(
-                      controller: _scrollController,
-                      reverse: true, // Show newest messages at bottom
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      addAutomaticKeepAlives: true,
-                      addRepaintBoundaries: true,
-                      itemBuilder: (context, index) {
-                        var messageData = messages[index];
-                        User? user = FirebaseAuth.instance.currentUser;
-                        var isDoc =
-                            messageData['sender'] == widget.chatData['doctor'];
-                        var isCurrUser = messageData['sender'] == user?.uid;
-                        var isPatient = user?.uid != widget.chatData['doctor'];
-
-                        // Determine which user's photo to load based on message sender
-                        var senderUserId = messageData['sender'] as String?;
-                        var cachedPhoto = _photoCache[senderUserId ?? ''];
-
-                        // Check if this is a prescription message or a prescription reference
-                        if (messageData['type'] == 'prescription') {
-                          return _buildPrescriptionMessage(
-                            messageData.data() as Map<String, dynamic>,
-                            isDoc
-                                ? widget.chatData['doctorName'] + " (Doctor)"
-                                : widget.chatData['clientName'] + ' (Client)',
-                            isCurrUser,
-                            isPatient &&
-                                !isCurrUser, // Show accept button only for patient receiving
-                            messageData.id, // Pass message document ID
-                            cachedPhoto,
-                          );
-                        } else if (messageData['type'] == 'prescription_ref') {
-                          // Lazy fetch the full prescription document referenced by this chat message
-                          final prescriptionId =
-                              messageData['prescriptionId'] as String?;
-                          final patientId = messageData['patientId'] as String?;
-                          if (prescriptionId == null || patientId == null) {
-                            return const Text('Invalid prescription reference');
-                          }
-
-                          return FutureBuilder<Map<String, dynamic>?>(
-                            future: _fetchPrescriptionWithCache(
-                                patientId, prescriptionId),
-                            builder: (context, snap) {
-                              if (snap.connectionState ==
-                                  ConnectionState.waiting) {
-                                return Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildProfileAvatar(cachedPhoto, 32),
-                                      const SizedBox(width: 8),
-                                      const Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-                              if (snap.hasError || snap.data == null) {
-                                return Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildProfileAvatar(cachedPhoto, 32),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade200,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: const Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              'Prescription',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                            SizedBox(height: 4),
-                                            Text(
-                                              'Prescription could not be found',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.red,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }
-                              final presData = snap.data!;
-
-                              // Overlay chat-level status if present
-                              presData['status'] = messageData['status'] ??
-                                  presData['status'] ??
-                                  'pending';
-
-                              return _buildPrescriptionMessage(
-                                presData,
-                                isDoc
-                                    ? widget.chatData['doctorName'] +
-                                        " (Doctor)"
-                                    : widget.chatData['clientName'] +
-                                        ' (Client)',
-                                isCurrUser,
-                                isPatient && !isCurrUser,
-                                messageData.id,
-                                cachedPhoto,
-                              );
-                            },
-                          );
-                        } else {
-                          // Regular text message - use cached photo directly
-                          return _buildMessageRow(
-                            isDoc
-                                ? widget.chatData['doctorName']
-                                : widget.chatData['clientName'],
-                            messageData['message'],
-                            isCurrUser,
-                            cachedPhoto,
-                          );
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-              // Input Field
-              _buildMessageInput(),
-            ],
+        ],
+      ),
+      centerTitle: false,
+      backgroundColor: const Color(0xFF4DBFB8),
+      actions: [
+        // Show prescription button only for doctors
+        if (isDocVal)
+          IconButton(
+            icon: const Icon(Icons.medication, color: Colors.white),
+            tooltip: 'Send Prescription',
+            onPressed: () {
+              _showSendPrescriptionDialog();
+            },
           ),
-        );
-      },
+      ],
     );
   }
 
@@ -397,7 +417,10 @@ class _ChatPageState extends State<ChatPage> {
             isCurrUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isCurrUser) _buildProfileAvatar(photo, 32),
+          if (!isCurrUser)
+            RepaintBoundary(
+              child: _buildProfileAvatar(photo, 32),
+            ),
           if (!isCurrUser) const SizedBox(width: 8),
           ConstrainedBox(
             constraints: BoxConstraints(
@@ -428,7 +451,9 @@ class _ChatPageState extends State<ChatPage> {
                     sender,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: isCurrUser ? const Color(0xFF006A71) :const Color(0xFF006A71) ,
+                      color: isCurrUser
+                          ? const Color(0xFF006A71)
+                          : const Color(0xFF006A71),
                       fontSize: 11,
                     ),
                   ),
@@ -442,7 +467,10 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           if (isCurrUser) const SizedBox(width: 8),
-          if (isCurrUser) _buildProfileAvatar(photo, 32),
+          if (isCurrUser)
+            RepaintBoundary(
+              child: _buildProfileAvatar(photo, 32),
+            ),
         ],
       ),
     );
@@ -476,7 +504,27 @@ class _ChatPageState extends State<ChatPage> {
         final parts = photo.split(',');
         if (parts.length > 1) {
           final base64String = parts[1];
+
+          // Check if already decoded and cached
+          if (_decodedImageCache.containsKey(photo)) {
+            final cachedBytes = _decodedImageCache[photo]!;
+            return ClipOval(
+              child: Image.memory(
+                cachedBytes,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Icon(Icons.person, color: Colors.white, size: 18),
+                  );
+                },
+              ),
+            );
+          }
+
+          // Decode and cache
           final decodedBytes = base64Decode(base64String);
+          _decodedImageCache[photo] = decodedBytes;
+
           return ClipOval(
             child: Image.memory(
               decodedBytes,
@@ -548,7 +596,10 @@ class _ChatPageState extends State<ChatPage> {
           _isSending
               ? const CircularProgressIndicator()
               : IconButton(
-                  icon: const Icon(Icons.send, color: const Color(0xFF006A71),),
+                  icon: const Icon(
+                    Icons.send,
+                    color: const Color(0xFF006A71),
+                  ),
                   onPressed: _sendMessage,
                 ),
         ],
@@ -757,59 +808,81 @@ class _ChatPageState extends State<ChatPage> {
         // Handle multiple medicines
         for (var med in medicines) {
           final medicineMap = med as Map<String, dynamic>;
-          print('Processing medicine: ${medicineMap['medicineName']}');
 
-          // Convert duration to string then to days (handle int or string stored in Firestore)
-          final durationStr = (medicineMap['duration'] ?? '30 days').toString();
+          // Validate required fields
+          final medicineName = medicineMap['medicineName']?.toString().trim();
+          if (medicineName == null || medicineName.isEmpty) {
+            print('⚠️ Skipping medicine: medicineName is missing or empty');
+            continue;
+          }
+
+          print('✓ Processing medicine: $medicineName');
+
+          // Convert duration to string then to days (handle int or string from web)
+          final durationValue = medicineMap['duration'] ?? '30 days';
+          final durationStr = durationValue is int
+              ? '$durationValue'
+              : durationValue.toString();
           final durationDays = _parseDurationToDays(durationStr);
-          print('  Duration: $durationStr -> $durationDays days');
+          print('  Duration: $durationStr → $durationDays days');
 
-          // Get times - could be a list (new format) or a single time (legacy)
+          // Get times - could be a list (new format) or a single time (web format)
           final times = medicineMap['times'] as List<dynamic>?;
-          print('  Times: $times');
+          final singleTime = medicineMap['time']?.toString().trim();
+          print('  Times array: $times, Single time: $singleTime');
 
           // Prepare medicine metadata for task storage - ensure all values are Strings
           final medicineMetadata = {
-            'type': (medicineMap['type'] ?? '').toString(),
-            'dosage': (medicineMap['dosage'] ?? '').toString(),
-            'frequency': (medicineMap['frequency'] ?? '').toString(),
-            'duration': (medicineMap['duration'] ?? '').toString(),
-            'remarks': (medicineMap['remarks'] ?? '').toString(),
+            'type': (medicineMap['type'] ?? '').toString().trim(),
+            'dosage': (medicineMap['dosage'] ?? '').toString().trim(),
+            'frequency': (medicineMap['frequency'] ?? '').toString().trim(),
+            'duration': (medicineMap['duration'] ?? '').toString().trim(),
+            'remarks': (medicineMap['remarks'] ?? '').toString().trim(),
             if (doctorName != null) 'doctorName': doctorName,
           };
 
-          print('  Medicine Metadata: $medicineMetadata');
+          print(
+              '  Metadata: ${medicineMetadata['type']} • ${medicineMetadata['dosage']} • ${medicineMetadata['frequency']}');
 
           if (times != null && times.isNotEmpty) {
-            // Use ALL times for creating tasks
-            final timesList = times.map((t) => t.toString()).toList();
+            // New format: times array (from web)
+            final timesList = times
+                .map((t) => t.toString().trim())
+                .where((t) => t.isNotEmpty)
+                .toList();
+            if (timesList.isEmpty) {
+              print('  ⚠️ Times array is empty after filtering');
+              continue;
+            }
             print(
-                '  Creating tasks with ${timesList.length} times for $durationDays days');
-            print('  Times list: $timesList');
+                '  📅 Creating tasks: ${timesList.length} times × $durationDays days');
 
             await _taskService.addPrescriptionTaskWithDuration(
               prescription['patientId'].toString(),
-              medicineMap['medicineName'].toString(),
+              medicineName,
               timesList,
               durationDays,
               medicineData: medicineMetadata,
             );
             print('  ✓ Tasks created successfully');
-          } else if (medicineMap['time'] != null) {
-            // Fallback to single time (legacy format)
-            final timesList = [medicineMap['time'].toString()];
-            print('  Creating legacy tasks with single time');
+          } else if (singleTime != null && singleTime.isNotEmpty) {
+            // Fallback: single time (web format or legacy)
+            final timesList = [singleTime];
+            print(
+                '  📅 Creating tasks: 1 time × $durationDays days at $singleTime');
 
             await _taskService.addPrescriptionTaskWithDuration(
               prescription['patientId'].toString(),
-              medicineMap['medicineName'].toString(),
+              medicineName,
               timesList,
               durationDays,
               medicineData: medicineMetadata,
             );
-            print('  ✓ Legacy tasks created successfully');
+            print('  ✓ Tasks created successfully');
           } else {
-            print('  ⚠️ No times found for this medicine!');
+            print(
+                '  ❌ Error: No time data found (neither times array nor time field)');
+            throw Exception('Medicine "$medicineName" has no time specified');
           }
         }
       } else {
@@ -1048,7 +1121,10 @@ class _ChatPageState extends State<ChatPage> {
             isCurrUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!isCurrUser) _buildProfileAvatar(photoURL, 40),
+          if (!isCurrUser)
+            RepaintBoundary(
+              child: _buildProfileAvatar(photoURL, 40),
+            ),
           if (!isCurrUser) const SizedBox(width: 8),
           ConstrainedBox(
             constraints: BoxConstraints(
@@ -1060,7 +1136,7 @@ class _ChatPageState extends State<ChatPage> {
               decoration: BoxDecoration(
                 color: isCurrUser
                     ? const Color.fromARGB(255, 207, 218, 226)
-                    :  Color.fromARGB(255, 255, 255, 255).withOpacity(0.5),
+                    : Color.fromARGB(255, 255, 255, 255).withOpacity(0.5),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: statusColor, width: 1),
                 boxShadow: [
@@ -1144,7 +1220,7 @@ class _ChatPageState extends State<ChatPage> {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(                   
+                              decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(4),
                                 border: Border.all(color: Colors.grey.shade300),
                               ),
@@ -1152,7 +1228,7 @@ class _ChatPageState extends State<ChatPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    med['medicineName'] ?? '',
+                                    'Name: ${(med['medicineName']?.toString() ?? '').isEmpty ? 'No name provided' : med['medicineName']}',
                                     style: const TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
@@ -1201,12 +1277,17 @@ class _ChatPageState extends State<ChatPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildPrescriptionDetail(
-                            'Medicine', messageData['medicineName']),
+                            'Medicine',
+                            (messageData['medicineName']?.toString() ?? '')
+                                    .isEmpty
+                                ? 'No name provided'
+                                : messageData['medicineName']),
                         _buildPrescriptionDetail(
-                            'Dosage', messageData['dosage']),
+                            'Dosage', messageData['dosage'] ?? ''),
                         _buildPrescriptionDetail(
-                            'Frequency', messageData['frequency']),
-                        _buildPrescriptionDetail('Time', messageData['time']),
+                            'Frequency', messageData['frequency'] ?? ''),
+                        _buildPrescriptionDetail(
+                            'Time', messageData['time'] ?? ''),
                         if ((messageData['instructions'] as String?)
                                 ?.isNotEmpty ??
                             false)
@@ -1265,7 +1346,8 @@ class _ChatPageState extends State<ChatPage> {
                               icon: const Icon(Icons.close, size: 16),
                               label: const Text('Decline'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color.fromARGB(255, 196, 58, 48),
+                                backgroundColor:
+                                    const Color.fromARGB(255, 196, 58, 48),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -1302,7 +1384,7 @@ class _ChatPageState extends State<ChatPage> {
                                 backgroundColor: _isAcceptingPrescription
                                     ? Colors.grey
                                     : const Color.fromARGB(255, 255, 255, 255),
-                                   foregroundColor: Color(0xFF006A71),
+                                foregroundColor: Color(0xFF006A71),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                   vertical: 0,
@@ -1318,7 +1400,10 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           if (isCurrUser) const SizedBox(width: 8),
-          if (isCurrUser) _buildProfileAvatar(photoURL, 40),
+          if (isCurrUser)
+            RepaintBoundary(
+              child: _buildProfileAvatar(photoURL, 40),
+            ),
         ],
       ),
     );
