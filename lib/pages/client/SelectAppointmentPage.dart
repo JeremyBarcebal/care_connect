@@ -109,7 +109,7 @@ class _SelectAppointmentPageState extends State<SelectAppointmentPage> {
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w400,
           ),
         ),
         elevation: 0,
