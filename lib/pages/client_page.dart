@@ -112,34 +112,39 @@ class _ClientPageState extends State<ClientPage> {
       body: _widgetOptions.elementAt(_selectedIndex),
       floatingActionButton: Stack(
         children: [
-          FloatingActionButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => client_notif.NotificationPage()),
-              );
-            },
-            child: const Icon(Icons.notifications, color: Colors.white),
-            tooltip: 'Notifications',
-            backgroundColor: const Color(0xFF4DBFB8),
+          // Notifications FAB
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => client_notif.NotificationPage()),
+                );
+              },
+              child: const Icon(Icons.notifications, color: Colors.white),
+              tooltip: 'Notifications',
+              backgroundColor: const Color(0xFF4DBFB8),
+            ),
           ),
           // Red badge for new notifications
           if (_newNotificationCount > 0)
             Positioned(
-              right: 8,
-              top: 8,
+              right: 4,
+              bottom: 35,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.red,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   _newNotificationCount.toString(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -186,7 +191,7 @@ class _ClientPageState extends State<ClientPage> {
                     label: '',
                   ),
                   BottomNavigationBarItem(
-                    icon: Icon(Icons.filter_alt),
+                    icon: Icon(Icons.book_rounded),
                     label: '',
                   ),
                   BottomNavigationBarItem(

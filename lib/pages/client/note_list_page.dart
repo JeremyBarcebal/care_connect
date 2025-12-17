@@ -160,26 +160,23 @@ class NoteItem extends StatelessWidget {
       doctorName = 'Unassigned Doctor';
     }
 
-    // Safely convert approved field to boolean
-    bool? approvedStatus;
+    // Determine status from 'status' field directly from Firebase
     IconData statusIcon = Icons.check_box_outline_blank; // Pending (default)
     try {
-      if (note.data() != null && note.data().containsKey('approved')) {
-        var approvedValue = note['approved'];
-        if (approvedValue is bool) {
-          approvedStatus = approvedValue;
-        } else if (approvedValue is String) {
-          approvedStatus = approvedValue.toLowerCase() == 'true';
-        }
+      final statusValue =
+          (note['status'] ?? 'pending').toString().toLowerCase();
 
-        if (approvedStatus == true) {
-          statusIcon = Icons.check_circle; // Approved
-        } else if (approvedStatus == false) {
-          statusIcon = Icons.cancel; // Declined
-        }
+      if (statusValue == 'confirmed') {
+        statusIcon = Icons.check_circle; // Approved
+      } else if (statusValue == 'rejected') {
+        statusIcon = Icons.cancel; // Declined
+      } else {
+        // Default to pending for any other value or 'pending'
+        statusIcon = Icons.check_box_outline_blank;
       }
     } catch (e) {
-      print("⚠️ Error parsing approved status: $e");
+      print("⚠️ Error parsing status: $e");
+      statusIcon = Icons.check_box_outline_blank; // Default to Pending on error
     }
 
     return Padding(

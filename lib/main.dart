@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -25,6 +27,14 @@ void main() async {
   FlutterError.onError = (FlutterErrorDetails details) {
     print('🔴 FLUTTER ERROR: ${details.exception}');
     print('📋 Stack: ${details.stack}');
+    FlutterError.dumpErrorToConsole(details);
+  };
+
+  // Catch platform/async errors that escape normal error handling
+  PlatformDispatcher.instance.onError = (error, stack) {
+    print('🔴 PLATFORM/ASYNC ERROR: $error');
+    print('📋 Stack: $stack');
+    return true;
   };
 
   await Firebase.initializeApp();

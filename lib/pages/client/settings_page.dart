@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image/image.dart' as img;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -33,10 +34,6 @@ class _SettingsPageState extends State<SettingsPage> {
     'city': TextEditingController(),
     'state': TextEditingController(),
     'zipCode': TextEditingController(),
-    'insuranceProvider': TextEditingController(),
-    'policyNumber': TextEditingController(),
-    'emergencyContact': TextEditingController(),
-    'governmentId': TextEditingController(),
   };
 
   String? _profilePhotoUrl;
@@ -72,12 +69,6 @@ class _SettingsPageState extends State<SettingsPage> {
           _controllers['city']!.text = userDoc['city'] ?? '';
           _controllers['state']!.text = userDoc['state'] ?? '';
           _controllers['zipCode']!.text = userDoc['zipCode'] ?? '';
-          _controllers['insuranceProvider']!.text =
-              userDoc['insuranceProvider'] ?? '';
-          _controllers['policyNumber']!.text = userDoc['policyNumber'] ?? '';
-          _controllers['emergencyContact']!.text =
-              userDoc['emergencyContact'] ?? '';
-          _controllers['governmentId']!.text = userDoc['governmentId'] ?? '';
           // Safe access to photo - use .get() method with null coalescing
           _profilePhotoUrl =
               (userDoc.data() as Map?)?.containsKey('photo') == true
@@ -302,6 +293,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   );
                 }
 
+                // Set logout flag in SharedPreferences
+                SharedPreferences prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('isLoggedOut', true);
+
                 await _auth.signOut(); // Firebase sign out
                 Navigator.pushReplacementNamed(
                     context, '/login'); // Redirect to login page
@@ -407,15 +402,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Scaffold(
       appBar: AppBar(
-      title: const Text('Settings',
-      style: TextStyle(
-        fontSize: 18,
+        title: const Text(
+          'Settings',
+          style: TextStyle(
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: Color(0xFF48A6A7),
+        foregroundColor: Colors.white,
+        centerTitle: true,
       ),
-    ),
-    backgroundColor: Color(0xFF48A6A7),
-    foregroundColor: Colors.white,
-    centerTitle: true,
-  ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -494,7 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   children: [
                     // Personal Information Section
-                    _buildSectionHeader('Personal Information' ),
+                    _buildSectionHeader('Personal Information'),
                     _buildEditableField(
                         'name', 'Full Name', Icons.person, TextInputType.text),
                     const SizedBox(height: 12),
@@ -525,26 +521,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     _buildEditableField(
                         'zipCode', 'Zip Code', Icons.mail, TextInputType.text),
                     const SizedBox(height: 20),
-
-                    // Insurance Information Section
-                    _buildSectionHeader('Insurance Information'),
-                    _buildEditableField(
-                        'insuranceProvider',
-                        'Insurance Provider',
-                        Icons.security,
-                        TextInputType.text),
-                    const SizedBox(height: 12),
-                    _buildEditableField('policyNumber', 'Policy Number',
-                        Icons.receipt, TextInputType.text),
-                    const SizedBox(height: 20),
-
-                    // Emergency Information Section
-                    _buildSectionHeader('Emergency Information'),
-                    _buildEditableField('emergencyContact', 'Emergency Contact',
-                        Icons.warning, TextInputType.phone),
-                    const SizedBox(height: 12),
-                    _buildEditableField('governmentId', 'Government ID',
-                        Icons.badge, TextInputType.text),
                   ],
                 ),
               ),
@@ -583,18 +559,21 @@ class _SettingsPageState extends State<SettingsPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _logout(context),
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Logout'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
+                    onPressed: () => _logout(context),
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Logout'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF4DBFB8),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      side: BorderSide(
+                        color: const Color(0xFF4DBFB8),
+                        width: 1.5,
+                      ),
+                    )),
               ),
               const SizedBox(height: 20),
             ],

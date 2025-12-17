@@ -47,43 +47,24 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Safely get approved status
-    bool? approvedStatus;
-    String statusText = 'Pending';
-    IconData statusIcon = Icons.schedule;
-    String doctorName = 'Unassigned Doctor';
+    // Extract status and doctor name directly from Firebase
+    String statusValue =
+        _safeGetString(widget.noteData['status'], defaultValue: 'Pending')
+            .toLowerCase();
+    String doctorName = _safeGetString(widget.noteData['doctorName'],
+        defaultValue: 'Unassigned Doctor');
 
-    try {
-      final data = widget.noteData.data() as Map<String, dynamic>?;
-      if (data != null) {
-        // Safe access to approved field with proper type handling
-        if (data.containsKey('approved')) {
-          var approvedValue = data['approved'];
-          if (approvedValue is bool) {
-            approvedStatus = approvedValue;
-          } else if (approvedValue is String) {
-            approvedStatus = approvedValue.toLowerCase() == 'true';
-          }
+    // Determine both text and icon based on status from Firebase
+    String statusText = statusValue.replaceFirst(statusValue[0],
+        statusValue[0].toUpperCase()); // Capitalize first letter
+    IconData statusIcon = Icons.schedule; // Default to pending
 
-          if (approvedStatus == true) {
-            statusText = 'Approved';
-            statusIcon = Icons.check_circle;
-          } else if (approvedStatus == false) {
-            statusText = 'Declined';
-            statusIcon = Icons.cancel;
-          }
-        }
-        // Safe access to doctorName field
-        if (data.containsKey('doctorName')) {
-          doctorName = data['doctorName'] ?? 'Unassigned Doctor';
-        }
-      }
-    } catch (e) {
-      // If there's any error, use default pending status
-      print("❌ Error parsing note data: $e");
-      statusText = 'Pending';
+    if (statusValue == 'confirmed') {
+      statusIcon = Icons.check_circle;
+    } else if (statusValue == 'rejected') {
+      statusIcon = Icons.cancel;
+    } else if (statusValue == 'pending') {
       statusIcon = Icons.schedule;
-      doctorName = 'Unassigned Doctor';
     }
 
     return Scaffold(
@@ -278,8 +259,8 @@ class _PatientNoteDetailPageState extends State<PatientNoteDetailPage> {
                     ),
                   const SizedBox(height: 24),
 
-                  // Action Buttons
-                  if (approvedStatus == null)
+                  // Action Buttons - Show only if status is still pending
+                  if (statusText == 'Pending')
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [

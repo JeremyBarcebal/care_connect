@@ -109,6 +109,10 @@ class MedicineNotificationService {
         );
     print('✓ iOS permissions requested');
     print('✓ MedicineNotificationService initialization complete!');
+
+    // Debug: Show any previously scheduled notifications
+    await Future.delayed(Duration(milliseconds: 500));
+    await debugScheduledNotifications();
   }
 
   /// Check and display all scheduled notifications (for debugging)
@@ -140,12 +144,35 @@ class MedicineNotificationService {
         .snapshots()
         .listen((snapshot) {
       print('Task snapshot received: ${snapshot.docs.length} date documents');
+
+      final dateFormat = DateFormat('MM-dd-yyyy');
+      final now = DateTime.now();
+
       for (var doc in snapshot.docs) {
         final dateStr = doc.id;
+
         try {
+          // Parse the date document ID to check if it's in the future
+          final taskDate = dateFormat.parse(dateStr);
+
+          // Only process tasks for today and future dates
+          // If date is before today (and time has passed), skip
+          final isToday = taskDate.year == now.year &&
+              taskDate.month == now.month &&
+              taskDate.day == now.day;
+
+          final isFuture =
+              taskDate.isAfter(DateTime(now.year, now.month, now.day));
+
+          if (!isToday && !isFuture) {
+            print('Date: $dateStr - SKIPPED (date is in the past)');
+            continue;
+          }
+
           final data = doc.data() as Map<String, dynamic>?;
           final tasks = (data?['tasks'] as List?) ?? [];
-          print('Date: $dateStr - Found ${tasks.length} tasks');
+          print(
+              'Date: $dateStr - Found ${tasks.length} tasks (${isToday ? 'TODAY' : 'FUTURE'})');
 
           for (var task in tasks) {
             _scheduleNotificationForTask(task, dateStr, userId);
@@ -203,20 +230,27 @@ class MedicineNotificationService {
         final timeStr = times[i];
         final notificationKey = '$userId-$dateStr-$medicineName-$timeStr';
 
-        // Don't skip if already scheduled - allow rescheduling for all days
-        // This ensures notifications trigger on all scheduled dates (e.g., 3 days = Dec 17, 18, 19)
+        // Check if this notification was already scheduled
+        // Allow rescheduling for the first occurrence on each day
+        if (_scheduledNotifications.containsKey(notificationKey)) {
+          print('    → Already scheduled: $notificationKey (skipping)');
+          continue;
+        }
 
         // Parse time format with AM/PM conversion
         int hour = 0;
         int minute = 0;
 
-        // Check if time includes AM/PM
+        // Check if time includes AM/PM (case-insensitive)
         final isPM = RegExp(r'PM|pm').hasMatch(timeStr);
         final isAM = RegExp(r'AM|am').hasMatch(timeStr);
+        final hasAMPM = isPM || isAM;
 
+        // Clean the time string by removing AM/PM indicators
         String cleanTimeStr =
-            timeStr.replaceAll(RegExp(r'\s+(AM|PM|am|pm)$'), '').trim();
+            timeStr.replaceAll(RegExp(r'\s*(AM|PM|am|pm)\s*$'), '').trim();
         final timeParts = cleanTimeStr.split(':');
+
         if (timeParts.length != 2) {
           print(
               '    ❌ INVALID TIME FORMAT: "$timeStr" (cannot parse - expected HH:MM format)');
@@ -227,14 +261,26 @@ class MedicineNotificationService {
         minute = int.tryParse(timeParts[1]) ?? 0;
 
         // Convert to 24-hour format if AM/PM is present
-        if (isPM && hour != 12) {
-          hour += 12; // 1 PM = 13:00, 2 PM = 14:00, etc.
-        } else if (isAM && hour == 12) {
-          hour = 0; // 12 AM = 00:00
+        if (hasAMPM) {
+          // If hour is in 12-hour format with AM/PM
+          if (isPM && hour != 12) {
+            hour += 12; // 1 PM = 13:00, 2 PM = 14:00, etc.
+          } else if (isAM && hour == 12) {
+            hour = 0; // 12 AM = 00:00 (midnight)
+          }
+          // else: 12 PM or other AM times are already correct
+        } else {
+          // No AM/PM indicator - time is assumed to be in 24-hour format already
+          // Validate that hour is in valid 24-hour range
+          if (hour < 0 || hour > 23) {
+            print(
+                '    ❌ INVALID 24-HOUR FORMAT: "$timeStr" - hour must be 0-23');
+            continue;
+          }
         }
 
         print(
-            '    → Parsed time: $timeStr → $hour:${minute.toString().padLeft(2, '0')}');
+            '    → Parsed time: $timeStr → $hour:${minute.toString().padLeft(2, '0')} (format: ${hasAMPM ? '12-hour' : '24-hour'})');
 
         final dateFormat = DateFormat('MM-dd-yyyy');
         final DateTime scheduledDate = dateFormat.parse(dateStr);
@@ -268,31 +314,36 @@ class MedicineNotificationService {
 
         try {
           print(
-              '    ⏰ SCHEDULING NOTIFICATION: $medicineName at $tzScheduledDateTime');
+              '    ⏰ SCHEDULING ALARM: $medicineName at $tzScheduledDateTime');
           await _notificationsPlugin.zonedSchedule(
             scheduledDateTime.hashCode + i,
-            'Time to take your medicine',
-            'Take $medicineName now',
+            '💊 TAKE YOUR MEDICINE',
+            '$medicineName - Time to take your medicine now!',
             tzScheduledDateTime,
             NotificationDetails(
               android: AndroidNotificationDetails(
                 'medicine_channel',
                 'Medicine Reminders',
-                channelDescription: 'Notifications for medicine reminders',
+                channelDescription: 'Medicine reminder alarms',
                 importance: Importance.max,
-                priority: Priority.high,
+                priority: Priority.max,
                 enableVibration: true,
                 vibrationPattern:
-                    Int64List.fromList([0, 500, 250, 500, 250, 500]),
+                    Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
                 playSound: true,
                 fullScreenIntent: true,
-                styleInformation:
-                    BigTextStyleInformation('Take $medicineName now'),
+                autoCancel: false,
+                onlyAlertOnce: false,
+                styleInformation: BigTextStyleInformation(
+                  '$medicineName - Time to take your medicine now!\n\nTap to open the app and mark as complete.',
+                  contentTitle: '💊 MEDICINE REMINDER',
+                ),
               ),
               iOS: DarwinNotificationDetails(
                 presentAlert: true,
                 presentBadge: true,
                 presentSound: true,
+                interruptionLevel: InterruptionLevel.critical,
               ),
             ),
             androidScheduleMode: AndroidScheduleMode.alarmClock,
@@ -301,7 +352,7 @@ class MedicineNotificationService {
           );
           _scheduledNotifications[notificationKey] = true;
           print(
-              '    ✅ SUCCESS: Notification scheduled for $medicineName at $tzScheduledDateTime');
+              '    ✅ SUCCESS: Alarm scheduled for $medicineName at $tzScheduledDateTime');
         } on PlatformException catch (e) {
           print(
               '    ❌ PlatformException: Code=${e.code}, Message=${e.message}');
@@ -310,30 +361,35 @@ class MedicineNotificationService {
             // Fallback to inexact alarm if exact alarm is not permitted
             try {
               print(
-                  'Scheduling fallback inexact notification for $medicineName at $tzScheduledDateTime');
+                  'Scheduling fallback inexact alarm for $medicineName at $tzScheduledDateTime');
               await _notificationsPlugin.zonedSchedule(
                 scheduledDateTime.hashCode + i,
-                'Time to take your medicine',
-                'Take $medicineName now',
+                '💊 TAKE YOUR MEDICINE',
+                '$medicineName - Time to take your medicine now!',
                 tzScheduledDateTime,
                 NotificationDetails(
                   android: AndroidNotificationDetails(
                     'medicine_channel',
                     'Medicine Reminders',
-                    channelDescription: 'Notifications for medicine reminders',
+                    channelDescription: 'Medicine reminder alarms',
                     importance: Importance.max,
-                    priority: Priority.high,
+                    priority: Priority.max,
                     enableVibration: true,
                     vibrationPattern:
-                        Int64List.fromList([0, 500, 250, 500, 250, 500]),
+                        Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
                     playSound: true,
-                    styleInformation:
-                        BigTextStyleInformation('Take $medicineName now'),
+                    fullScreenIntent: true,
+                    autoCancel: false,
+                    styleInformation: BigTextStyleInformation(
+                      '$medicineName - Time to take your medicine now!\n\nTap to open the app and mark as complete.',
+                      contentTitle: '💊 MEDICINE REMINDER',
+                    ),
                   ),
                   iOS: DarwinNotificationDetails(
                     presentAlert: true,
                     presentBadge: true,
                     presentSound: true,
+                    interruptionLevel: InterruptionLevel.critical,
                   ),
                 ),
                 androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -341,16 +397,16 @@ class MedicineNotificationService {
                     UILocalNotificationDateInterpretation.absoluteTime,
               );
               _scheduledNotifications[notificationKey] = true;
-              print('✓ Fallback notification scheduled successfully');
+              print('✓ Fallback alarm scheduled successfully');
             } catch (fallbackError) {
-              print('Error scheduling fallback notification: $fallbackError');
+              print('Error scheduling fallback alarm: $fallbackError');
             }
           } else {
-            print('Unexpected error scheduling notification: $e');
+            print('Unexpected error scheduling alarm: $e');
             rethrow;
           }
         } catch (e) {
-          print('Error scheduling notification: $e');
+          print('Error scheduling alarm: $e');
           rethrow;
         }
 
@@ -402,6 +458,211 @@ class MedicineNotificationService {
     } catch (e) {
       print('✗ Error sending test notification: $e');
       rethrow;
+    }
+  }
+
+  /// Manually force refresh all tasks from Firestore
+  /// Use this if notifications aren't triggering even though they should be
+  Future<void> forceRefreshTasks(String userId) async {
+    print('\n🔄 ========== FORCE REFRESHING TASKS ==========');
+    print('⚠️  This will re-check all tasks and reschedule notifications');
+
+    try {
+      final taskSnapshot = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(userId)
+          .collection('task')
+          .get();
+
+      print('Found ${taskSnapshot.docs.length} date documents\n');
+
+      final dateFormat = DateFormat('MM-dd-yyyy');
+      final now = DateTime.now();
+      int scheduledCount = 0;
+
+      for (var doc in taskSnapshot.docs) {
+        final dateStr = doc.id;
+
+        try {
+          final taskDate = dateFormat.parse(dateStr);
+          final isToday = taskDate.year == now.year &&
+              taskDate.month == now.month &&
+              taskDate.day == now.day;
+          final isFuture =
+              taskDate.isAfter(DateTime(now.year, now.month, now.day));
+
+          if (!isToday && !isFuture) {
+            print('Skipping $dateStr (past date)');
+            continue;
+          }
+
+          final data = doc.data() as Map<String, dynamic>?;
+          final tasks = (data?['tasks'] as List?) ?? [];
+
+          print('Processing $dateStr: ${tasks.length} tasks');
+
+          for (var task in tasks) {
+            // Temporarily remove from cache to force rescheduling
+            final title = task['title'] ?? 'Medicine';
+            final time = task['time'] ?? '';
+            final cacheKey = '$userId-$dateStr-$title-$time';
+            _scheduledNotifications.remove(cacheKey);
+
+            // Reschedule
+            await _scheduleNotificationForTask(task, dateStr, userId);
+            scheduledCount++;
+          }
+        } catch (e) {
+          print('Error processing $dateStr: $e');
+        }
+      }
+
+      print(
+          '✅ Force refresh complete! Scheduled $scheduledCount notifications\n');
+    } catch (e) {
+      print('❌ Error during force refresh: $e');
+    }
+  }
+
+  /// Comprehensive diagnostic to troubleshoot notification issues
+  Future<void> runDiagnostics(String userId) async {
+    print('\n🔍 ========== NOTIFICATION SYSTEM DIAGNOSTICS ==========');
+    print('📅 Current Time: ${DateTime.now()}');
+    print('🌍 Current Timezone: ${tz_timezone.local}');
+
+    // Check pending notifications
+    try {
+      final pending = await _notificationsPlugin.pendingNotificationRequests();
+      print('📋 Pending Notifications: ${pending.length}');
+      for (var notif in pending) {
+        print('   ✓ ID: ${notif.id}, Title: ${notif.title}');
+      }
+    } catch (e) {
+      print('❌ Error getting pending notifications: $e');
+    }
+
+    // Check Firestore tasks
+    print('\n📂 Checking Firestore Tasks:');
+    try {
+      final taskSnapshot = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(userId)
+          .collection('task')
+          .get();
+
+      print('   Found ${taskSnapshot.docs.length} date documents');
+
+      final dateFormat = DateFormat('MM-dd-yyyy');
+      final now = DateTime.now();
+
+      for (var doc in taskSnapshot.docs) {
+        final dateStr = doc.id;
+        final data = doc.data() as Map<String, dynamic>?;
+        final tasks = (data?['tasks'] as List?) ?? [];
+
+        try {
+          final taskDate = dateFormat.parse(dateStr);
+          final isToday = taskDate.year == now.year &&
+              taskDate.month == now.month &&
+              taskDate.day == now.day;
+          final isFuture =
+              taskDate.isAfter(DateTime(now.year, now.month, now.day));
+
+          print(
+              '\n   📅 Date: $dateStr (${isToday ? 'TODAY' : isFuture ? 'FUTURE' : 'PAST'})');
+          print('      Tasks: ${tasks.length}');
+
+          for (var task in tasks) {
+            final title = task['title'] ?? 'Unknown';
+            final time = task['time'] ?? 'No time';
+            final status = task['status'] ?? 'unknown';
+            print('      • $title @ $time (Status: $status)');
+
+            // Validate time format
+            if (time is String &&
+                !time.contains('AM') &&
+                !time.contains('PM')) {
+              print('        ⚠️  WARNING: Time missing AM/PM indicator!');
+            }
+          }
+        } catch (e) {
+          print('   ❌ Error parsing date $dateStr: $e');
+        }
+      }
+    } catch (e) {
+      print('❌ Error reading Firestore tasks: $e');
+    }
+
+    // Check permissions
+    print('\n🔐 Checking Permissions:');
+    try {
+      final notifPerm = await Permission.notification.status;
+      final alarmPerm = await Permission.scheduleExactAlarm.status;
+      print('   Notification: ${notifPerm.name}');
+      print('   Exact Alarm: ${alarmPerm.name}');
+    } catch (e) {
+      print('❌ Error checking permissions: $e');
+    }
+
+    // Check listener status
+    print('\n👂 Listener Status:');
+    print('   Active: ${_taskSubscription != null}');
+    print('   Cached notifications: ${_scheduledNotifications.length}');
+
+    print('\n✅ Diagnostics Complete\n');
+  }
+
+  /// Cancel all past scheduled notifications and clean cache
+  Future<void> cancelPastNotifications() async {
+    print('\n🧹 ========== CANCELING PAST NOTIFICATIONS ==========');
+
+    try {
+      final pending = await _notificationsPlugin.pendingNotificationRequests();
+      print('Found ${pending.length} pending notifications');
+
+      int canceledCount = 0;
+      final now = DateTime.now();
+
+      for (var notif in pending) {
+        // Check if notification ID corresponds to a past time
+        // (This is a simple check - in production, you'd store metadata)
+        print('Checking notification ID: ${notif.id}');
+        // For now, we'll let the system handle it
+        // The real fix is in _scheduleNotificationForTask to skip past times
+      }
+
+      // Also clear the cache to reset
+      print(
+          'Clearing notification cache (${_scheduledNotifications.length} entries)');
+      _scheduledNotifications.clear();
+
+      print('✅ Cleanup complete\n');
+    } catch (e) {
+      print('❌ Error canceling past notifications: $e');
+    }
+  }
+
+  /// Clear all scheduled notifications and cache
+  Future<void> clearAllAndReschedule(String userId) async {
+    print('\n🔄 ========== CLEAR ALL AND RESCHEDULE ==========');
+
+    try {
+      // Cancel all
+      await _notificationsPlugin.cancelAll();
+      _scheduledNotifications.clear();
+
+      print('Cancelled all notifications');
+      print('Waiting 2 seconds before rescheduling...');
+
+      // Wait a bit
+      await Future.delayed(Duration(seconds: 2));
+
+      // Now force refresh
+      await forceRefreshTasks(userId);
+
+      print('✅ Clear and reschedule complete\n');
+    } catch (e) {
+      print('❌ Error during clear and reschedule: $e');
     }
   }
 

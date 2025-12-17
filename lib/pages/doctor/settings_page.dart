@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
   @override
@@ -36,6 +37,11 @@ class _SettingsPageState extends State<SettingsPage> {
             TextButton(
               onPressed: () async {
                 Navigator.pop(context); // Close dialog
+
+                // Set logout flag in SharedPreferences
+                SharedPreferences prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('isLoggedOut', true);
+
                 await _auth.signOut(); // Firebase sign out
                 Navigator.pushReplacementNamed(
                     context, '/login'); // Redirect to login page

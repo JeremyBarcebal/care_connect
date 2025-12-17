@@ -11,12 +11,26 @@ class MessagePage extends StatefulWidget {
 
 class _MessagePageState extends State<MessagePage> {
   int _currentIndex = 0;
+  String _searchQuery = '';
+  late TextEditingController _searchController;
 
   // Firestore instance
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Current user
   User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +58,13 @@ class _MessagePageState extends State<MessagePage> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const TextField(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value.toLowerCase();
+                    });
+                  },
                   decoration: InputDecoration(
                     hintText: 'Search',
                     border: InputBorder.none,
@@ -96,6 +116,20 @@ class _MessagePageState extends State<MessagePage> {
               ...clientSnapshot.data!.docs,
               ...doctorSnapshot.data!.docs,
             ];
+
+            // Filter chats based on search query
+            if (_searchQuery.isNotEmpty) {
+              allChats = allChats.where((chat) {
+                var chatData = chat.data() as Map<String, dynamic>;
+                User? user = FirebaseAuth.instance.currentUser;
+                var isDoc = user?.uid == chatData['doctor'];
+                var chatTitle =
+                    (isDoc ? chatData['clientName'] : chatData['doctorName']) ??
+                        'Unknown User';
+                return chatTitle.toLowerCase().contains(_searchQuery);
+              }).toList();
+            }
+
             if (allChats.length == 0) {
               return Center(child: Text("No messages found"));
             }
@@ -221,11 +255,14 @@ class _MessagePageState extends State<MessagePage> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Container(
                 decoration: BoxDecoration(
-                  color:
-                      hasUnread ? Color.fromARGB(255, 72, 166, 172).withOpacity(0.15) : Colors.transparent,
+                  color: hasUnread
+                      ? Color.fromARGB(255, 72, 166, 172).withOpacity(0.15)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   border: hasUnread
-                      ? Border.all(color: const Color.fromARGB(255, 10, 128, 122), width: .3)
+                      ? Border.all(
+                          color: const Color.fromARGB(255, 10, 128, 122),
+                          width: .3)
                       : null,
                 ),
                 child: ListTile(
@@ -235,7 +272,9 @@ class _MessagePageState extends State<MessagePage> {
                     style: TextStyle(
                       fontWeight: hasUnread ? FontWeight.bold : FontWeight.w500,
                       fontSize: 14,
-                      color: hasUnread ? Color(0xFF006A71) : const Color.fromARGB(255, 57, 55, 55),
+                      color: hasUnread
+                          ? Color(0xFF006A71)
+                          : const Color.fromARGB(255, 57, 55, 55),
                     ),
                   ),
                   subtitle: Text(

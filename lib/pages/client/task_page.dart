@@ -9,13 +9,21 @@ class TaskPage extends StatefulWidget {
   _TaskPageState createState() => _TaskPageState();
 }
 
-class _TaskPageState extends State<TaskPage> {
+class _TaskPageState extends State<TaskPage> with TickerProviderStateMixin {
   DateTime _currentWeekStart =
       DateTime.now().subtract(Duration(days: DateTime.now().weekday - 1));
   DateTime? _selectedDate = DateTime.now(); // Default selected date to today
 
   // Get current user's UID
   final String userId = FirebaseAuth.instance.currentUser!.uid;
+
+  // Animation controllers
+  late AnimationController _slideAnimationController;
+  late AnimationController _fadeAnimationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<Offset> _slideAnimationNext;
+  late Animation<double> _fadeAnimation;
+  int _direction = 0; // 0: no animation, -1: previous week, 1: next week
 
   // Method to get the name of the month dynamically
   String get currentMonth => DateFormat.MMMM().format(_currentWeekStart);
@@ -29,15 +37,23 @@ class _TaskPageState extends State<TaskPage> {
 
   // Go to the previous week
   void _previousWeek() {
-    setState(() {
-      _currentWeekStart = _currentWeekStart.subtract(Duration(days: 7));
+    _direction = -1; // Previous week direction
+    _slideAnimationController.forward().then((_) {
+      setState(() {
+        _currentWeekStart = _currentWeekStart.subtract(Duration(days: 7));
+      });
+      _slideAnimationController.reverse();
     });
   }
 
   // Go to the next week
   void _nextWeek() {
-    setState(() {
-      _currentWeekStart = _currentWeekStart.add(Duration(days: 7));
+    _direction = 1; // Next week direction
+    _slideAnimationController.forward().then((_) {
+      setState(() {
+        _currentWeekStart = _currentWeekStart.add(Duration(days: 7));
+      });
+      _slideAnimationController.reverse();
     });
   }
 
@@ -89,6 +105,45 @@ class _TaskPageState extends State<TaskPage> {
   void initState() {
     super.initState();
     _taskService = TaskService();
+
+    // Initialize slide animation controller
+    _slideAnimationController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    // Initialize fade animation controller
+    _fadeAnimationController = AnimationController(
+      duration: Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    // Slide animation for previous week: moves content from left to right
+    _slideAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset(0.1, 0),
+    ).animate(CurvedAnimation(
+        parent: _slideAnimationController, curve: Curves.easeInOut));
+
+    // Slide animation for next week: moves content from right to left
+    _slideAnimationNext = Tween<Offset>(
+      begin: Offset.zero,
+      end: Offset(-0.1, 0),
+    ).animate(CurvedAnimation(
+        parent: _slideAnimationController, curve: Curves.easeInOut));
+
+    // Fade animation
+    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.5).animate(
+      CurvedAnimation(
+          parent: _fadeAnimationController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _slideAnimationController.dispose();
+    _fadeAnimationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -97,86 +152,117 @@ class _TaskPageState extends State<TaskPage> {
       body: Column(
         children: [
           // Teal header with calendar
-          Container(
-            color: Color(0xFF48A6A7),
-            height: 221,
-            padding: EdgeInsets.symmetric(vertical: 50, horizontal: 16),
-            child: Column(
-              children: [
-                // Month navigation
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: _previousWeek,
-                    ),
-                    Text(
-                      currentMonth,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.arrow_forward, color: Colors.white),
-                      onPressed: _nextWeek,
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12),
-                // Calendar Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(7, (index) {
-                    final dayDate = weekDays[index];
-                    final normalizedDay =
-                        DateTime(dayDate.year, dayDate.month, dayDate.day);
-                    final isSelected = _selectedDate != null &&
-                        DateTime(_selectedDate!.year, _selectedDate!.month,
-                                _selectedDate!.day) ==
-                            normalizedDay;
-
-                    return GestureDetector(
-                      onTap: () => _selectDate(dayDate),
-                      child: Column(
+          GestureDetector(
+            onHorizontalDragEnd: (DragEndDetails details) {
+              if (details.primaryVelocity! > 0) {
+                // Swiped right - Previous week
+                _previousWeek();
+              } else if (details.primaryVelocity! < 0) {
+                // Swiped left - Next week
+                _nextWeek();
+              }
+            },
+            child: Container(
+              color: Color(0xFF48A6A7),
+              height: 210,
+              padding: EdgeInsets.symmetric(vertical: 50, horizontal: 16),
+              child: Column(
+                children: [
+                  // Month display with navigation icons - with animation
+                  SlideTransition(
+                    position:
+                        _direction == 1 ? _slideAnimationNext : _slideAnimation,
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          Icon(
+                            Icons.arrow_left,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          SizedBox(width: 16),
                           Text(
-                            DateFormat.E().format(dayDate).toUpperCase(),
+                            currentMonth,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                          SizedBox(height: 8),
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.transparent,
-                            ),
-                            child: Center(
-                              child: Text(
-                                "${dayDate.day}",
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Color(0xFF4DBFB8)
-                                      : Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                          SizedBox(width: 16),
+                          Icon(
+                            Icons.arrow_right,
+                            color: Colors.white,
+                            size: 24,
                           ),
                         ],
                       ),
-                    );
-                  }),
-                ),
-              ],
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  // Calendar Row - with animation
+                  SlideTransition(
+                    position:
+                        _direction == 1 ? _slideAnimationNext : _slideAnimation,
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: List.generate(7, (index) {
+                          final dayDate = weekDays[index];
+                          final normalizedDay = DateTime(
+                              dayDate.year, dayDate.month, dayDate.day);
+                          final isSelected = _selectedDate != null &&
+                              DateTime(
+                                      _selectedDate!.year,
+                                      _selectedDate!.month,
+                                      _selectedDate!.day) ==
+                                  normalizedDay;
+
+                          return GestureDetector(
+                            onTap: () => _selectDate(dayDate),
+                            child: Column(
+                              children: [
+                                Text(
+                                  DateFormat.E().format(dayDate).toUpperCase(),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      "${dayDate.day}",
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Color(0xFF4DBFB8)
+                                            : Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           // White card with tasks

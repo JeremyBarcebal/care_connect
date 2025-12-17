@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 class LoginPage extends StatefulWidget {
   @override
   _LoginPageState createState() => _LoginPageState();
+}
+
+// Global error handler to catch uncaught exceptions
+void _setupGlobalErrorHandling() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    print('🔴 FLUTTER ERROR: ${details.exception}');
+    print('📋 Stack trace: ${details.stack}');
+    FlutterError.dumpErrorToConsole(details);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    print('🔴 PLATFORM ERROR: $error');
+    print('📋 Stack trace: $stack');
+    return true;
+  };
 }
 
 class _LoginPageState extends State<LoginPage> {
@@ -24,120 +40,83 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
 
   void _login() async {
-    // Validate inputs first
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       _showErrorDialog(context, 'Please enter both email and password.');
       return;
     }
 
-    setState(() {
-      _isLoading = true; // Show loader
-    });
+    final email = _emailController.text.trim();
+
+    if (!email.contains('@')) {
+      _showErrorDialog(context, 'Please enter a valid email address.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
 
     try {
-      print('🔐 Attempting login with email: ${_emailController.text.trim()}');
-
-      // Add timeout to prevent infinite loading
-      UserCredential userCredential = await _auth
+      // 🔐 Firebase login
+      final userCredential = await _auth
           .signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      )
-          .timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          print('❌ Login timeout - took longer than 30 seconds');
-          throw TimeoutException('Login request timed out. Please try again.');
-        },
-      ).catchError((Object error) {
-        // Catch errors from the Future directly
-        print('❌ Error in signInWithEmailAndPassword: $error');
-        print('❌ Error type: ${error.runtimeType}');
-        throw error;
-      });
+            email: email,
+            password: _passwordController.text,
+          )
+          .timeout(const Duration(seconds: 30));
 
-      if (!mounted) {
-        print('⚠️ Widget not mounted after login success, skipping navigation');
+      final userId = userCredential.user?.uid;
+
+      if (userId == null || userId.isEmpty) {
+        throw Exception('Invalid user ID.');
+      }
+
+      // 📄 Fetch user document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('accounts')
+          .doc(userId)
+          .get()
+          .timeout(const Duration(seconds: 15));
+
+      if (!userDoc.exists) {
+        _showErrorDialog(context, 'User data not found.');
         return;
       }
 
-      print('✅ Login successful, userId: ${userCredential.user?.uid}');
-      String userId = userCredential.user?.uid ?? '';
+      final userType = userDoc['type'] ?? '';
 
-      if (userId.isNotEmpty) {
-        DocumentSnapshot userDoc = await FirebaseFirestore.instance
-            .collection('accounts')
-            .doc(userId)
-            .get()
-            .timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw TimeoutException(
-                'Fetching user data timed out. Please try again.');
-          },
-        ).catchError((Object error) {
-          print('❌ Error fetching user doc: $error');
-          throw error;
-        });
+      if (!mounted) return;
 
-        if (!mounted) {
-          print(
-              '⚠️ Widget not mounted after user doc fetch, skipping navigation');
-          return;
-        }
-
-        if (userDoc.exists) {
-          String userType = userDoc['type'] ?? '';
-
-          if (userType == 'Doctor') {
-            if (mounted) {
-              Navigator.pushReplacementNamed(context, '/doctor');
-            }
-          } else {
-            if (mounted) {
-              Navigator.pushReplacementNamed(context, '/client');
-            }
-          }
-        } else {
-          if (mounted) {
-            _showErrorDialog(context, 'User data not found.');
-          }
-        }
+      // 🚀 Navigate
+      if (userType == 'Doctor') {
+        Navigator.pushReplacementNamed(context, '/doctor');
       } else {
-        if (mounted) {
-          _showErrorDialog(context, 'User ID is invalid.');
-        }
+        Navigator.pushReplacementNamed(context, '/client');
       }
-    } on FirebaseAuthException catch (e) {
-      print('❌ FirebaseAuthException: code=${e.code}, message=${e.message}');
-      String errorMessage = _getFirebaseAuthErrorMessage(e);
-      if (mounted) {
-        _showErrorDialog(context, errorMessage);
-      }
-    } catch (e, stackTrace) {
-      // Catch ALL exceptions including PlatformException and TimeoutException
-      print('❌ Exception caught: ${e.runtimeType}');
-      print('❌ Exception toString: ${e.toString()}');
-      print('❌ Exception: $e');
-      print('📋 Stack trace: $stackTrace');
+    }
 
-      String errorMessage = _getGeneralErrorMessage(e);
+    // ✅ ONLY catch FirebaseAuthException
+    on FirebaseAuthException catch (e) {
+      final errorMessage = _getFirebaseAuthErrorMessage(e);
+      _showErrorDialog(context, errorMessage);
+    }
 
-      if (mounted) {
-        _showErrorDialog(context, errorMessage);
-      } else {
-        print('⚠️ Widget not mounted, cannot show error dialog');
-      }
+    // ⏱ Timeout
+    on TimeoutException {
+      _showErrorDialog(
+        context,
+        'Request timed out. Please check your internet connection and try again.',
+      );
+    }
+
+    // 🧯 Any other unexpected error
+    catch (e) {
+      _showErrorDialog(
+        context,
+        'Login failed. Please try again.',
+      );
+      debugPrint('Unexpected error: $e');
     } finally {
-      // ALWAYS clear loading state, even if widget is not mounted
-      print('🔄 Clearing loading state...');
       if (mounted) {
-        setState(() {
-          _isLoading = false; // Hide loader
-        });
-        print('✓ Loading state cleared');
-      } else {
-        print('⚠️ Cannot clear loading state - widget not mounted');
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -271,35 +250,54 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showErrorDialog(BuildContext context, String errorMessage) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.error_outline, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Login Error'),
-            ],
-          ),
-          content: Text(
-            errorMessage,
-            style: const TextStyle(fontSize: 14, height: 1.5),
-          ),
-          actions: <Widget>[
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF4DBFB8),
-              ),
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+    // Use try-catch to prevent crashes from dialog display
+    try {
+      // First, try to hide keyboard
+      FocusScope.of(context).unfocus();
+
+      // Try to show SnackBar with better visibility
+      if (mounted && context.mounted) {
+        // Clear any existing snackbars first
+        ScaffoldMessenger.of(context).clearSnackBars();
+
+        // Show the error snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    errorMessage,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-          ],
+            backgroundColor: const Color(0xFFE74C3C), // Red error color
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            elevation: 6,
+          ),
         );
-      },
-    );
+        print('✓ Error snackbar displayed: $errorMessage');
+      }
+    } catch (e) {
+      print('❌ SnackBar failed: $e');
+      // If SnackBar fails, just log it - don't crash
+      // Don't fall back to dialog as it blocks the UI
+    }
   }
 
   @override

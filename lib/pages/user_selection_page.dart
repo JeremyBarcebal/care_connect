@@ -68,7 +68,7 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
                   child: SingleChildScrollView(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 50),
+                          horizontal: 30, vertical: 100),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -111,37 +111,37 @@ class _UserSelectionPageState extends State<UserSelectionPage> {
                           // Doctor button
                           SizedBox(
                             height: 50,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  userType = "doctor";
-                                });
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: userType == "doctor"
-                                    ? const Color(0xFF4DBFB8)
-                                    : Colors.white,
-                                side: BorderSide(
-                                  color: userType == "doctor"
-                                      ? const Color(0xFF4DBFB8)
-                                      : Colors.grey[300]!,
-                                  width: 2,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(15),
-                                ),
-                              ),
-                              child: Text(
-                                'Doctor',
-                                style: TextStyle(
-                                  color: userType == "doctor"
-                                      ? Colors.white
-                                      : Colors.black87,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
+                            // child: ElevatedButton(
+                            //   onPressed: () {
+                            //     setState(() {
+                            //       userType = "doctor";
+                            //     });
+                            //   },
+                            //   style: ElevatedButton.styleFrom(
+                            //     backgroundColor: userType == "doctor"
+                            //         ? const Color(0xFF4DBFB8)
+                            //         : Colors.white,
+                            //     side: BorderSide(
+                            //       color: userType == "doctor"
+                            //           ? const Color(0xFF4DBFB8)
+                            //           : Colors.grey[300]!,
+                            //       width: 2,
+                            //     ),
+                            //     shape: RoundedRectangleBorder(
+                            //       borderRadius: BorderRadius.circular(15),
+                            //     ),
+                            //   ),
+                            //   child: Text(
+                            //     'Doctor',
+                            //     style: TextStyle(
+                            //       color: userType == "doctor"
+                            //           ? Colors.white
+                            //           : Colors.black87,
+                            //       fontSize: 16,
+                            //       fontWeight: FontWeight.bold,
+                            //     ),
+                            //   ),
+                            // ),
                           ),
                           const SizedBox(height: 32),
                           // Proceed button

@@ -26,10 +26,6 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
     'city': TextEditingController(),
     'state': TextEditingController(),
     'zipCode': TextEditingController(),
-    'insuranceProvider': TextEditingController(),
-    'policyNumber': TextEditingController(),
-    'emergencyContact': TextEditingController(),
-    'governmentId': TextEditingController(),
     'confirmPassword': TextEditingController(),
   };
 
@@ -39,6 +35,15 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
 
   void _signup() async {
     try {
+      // Validate required fields
+      if (_controllers['email']!.text.isEmpty) {
+        _showErrorDialog(context, 'Email is required');
+        return;
+      }
+      if (_controllers['mobileNo']!.text.isEmpty) {
+        _showErrorDialog(context, 'Mobile Number is required');
+        return;
+      }
       if (_controllers['password']!.text !=
           _controllers['confirmPassword']!.text) {
         _showErrorDialog(context, 'Passwords do not match');
@@ -67,10 +72,6 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
         'city': _controllers['city']!.text,
         'state': _controllers['state']!.text,
         'zipCode': _controllers['zipCode']!.text,
-        'insuranceProvider': _controllers['insuranceProvider']!.text,
-        'policyNumber': _controllers['policyNumber']!.text,
-        'emergencyContact': _controllers['emergencyContact']!.text,
-        'governmentId': _controllers['governmentId']!.text,
         'type': 'patient',
         'createdAt': DateTime.now(),
       });
@@ -120,7 +121,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       margin: const EdgeInsets.only(bottom: 25),
       decoration: BoxDecoration(
-        color:  Colors.grey[200],
+        color: Colors.grey[200],
         borderRadius: BorderRadius.circular(15),
       ),
       child: TextField(
@@ -131,7 +132,7 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
         decoration: InputDecoration(
           labelText: label,
           labelStyle: const TextStyle(
-            fontSize: 13 ,
+            fontSize: 13,
             color: Colors.black,
             fontWeight: FontWeight.w400,
           ),
@@ -197,20 +198,12 @@ class _SignupPatientPageState extends State<SignupPatientPage> {
                           _buildTextField('dob', 'Date of Birth:',
                               readOnly: true, onTap: _pickDate),
                           _buildDropdownField('Gender:', ['Male', 'Female']),
-                          _buildTextField('mobileNo', 'Mobile No:'),
-                          _buildTextField('email', 'Email:'),
+                          _buildTextField('email', 'Email: *'),
+                          _buildTextField('mobileNo', 'Mobile No: *'),
                           _buildTextField('street', 'Street:'),
                           _buildTextField('city', 'City:'),
                           _buildTextField('state', 'State:'),
                           _buildTextField('zipCode', 'Zip Code:'),
-                          _buildTextField('insuranceProvider',
-                              'Insurance Provider (if applicable):'),
-                          _buildTextField(
-                              'policyNumber', 'Policy Number (if applicable):'),
-                          _buildTextField(
-                              'emergencyContact', 'Emergency Contact:'),
-                          _buildTextField(
-                              'governmentId', 'Government-issued ID:'),
                           _buildTextField('password', 'Password:',
                               obscureText: true),
                           _buildTextField(

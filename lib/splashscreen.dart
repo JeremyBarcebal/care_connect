@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -43,10 +46,10 @@ class _SplashScreenState extends State<SplashScreen>
             setState(() {
               _videoEnded = true;
             });
-            // Fade out and navigate to login after video ends
+            // Fade out and navigate after video ends
             _fadeController.forward().then((_) {
               if (mounted) {
-                Navigator.pushReplacementNamed(context, '/login');
+                _navigateToAppropriateScreen();
               }
             });
           }
@@ -59,12 +62,60 @@ class _SplashScreenState extends State<SplashScreen>
       }
     } catch (e) {
       print('❌ Error loading video: $e');
-      // If video fails to load, navigate to login
+      // If video fails to load, navigate appropriately
       if (mounted) {
         _fadeController.forward().then((_) {
-          Navigator.pushReplacementNamed(context, '/login');
+          _navigateToAppropriateScreen();
         });
       }
+    }
+  }
+
+  Future<void> _navigateToAppropriateScreen() async {
+    try {
+      // Check if user is logged in
+      User? currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser != null) {
+        // Check if user was manually logged out
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        bool isLoggedOut = prefs.getBool('isLoggedOut') ?? false;
+
+        if (!isLoggedOut) {
+          // User is still logged in and didn't logout, get user type
+          DocumentSnapshot userDoc = await FirebaseFirestore.instance
+              .collection('accounts')
+              .doc(currentUser.uid)
+              .get();
+
+          if (userDoc.exists) {
+            Map<String, dynamic> userData =
+                userDoc.data() as Map<String, dynamic>;
+            String userType =
+                (userData['type'] as String?)?.toLowerCase() ?? 'unknown';
+
+            if (currentUser.emailVerified) {
+              // Navigate to appropriate page based on user type
+              if (userType == 'patient') {
+                Navigator.pushReplacementNamed(context, '/client');
+                return;
+              } else if (userType == 'doctor') {
+                Navigator.pushReplacementNamed(context, '/doctor');
+                return;
+              }
+            }
+          }
+        } else {
+          // User was logged out, clear the flag
+          await prefs.setBool('isLoggedOut', false);
+        }
+      }
+
+      // Default navigation to login
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (e) {
+      print('❌ Error navigating: $e');
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
@@ -85,7 +136,7 @@ class _SplashScreenState extends State<SplashScreen>
                 // Skip video on tap
                 _fadeController.forward().then((_) {
                   if (mounted) {
-                    Navigator.pushReplacementNamed(context, '/login');
+                    _navigateToAppropriateScreen();
                   }
                 });
               },
